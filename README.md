@@ -24,18 +24,34 @@ The cleanup prompt is in [`prompts/cleanup.txt`](prompts/cleanup.txt). Paste it 
 
 The other settings are in [`settings/openwhispr-settings.json`](settings/openwhispr-settings.json).
 
-## Changes on top of OpenWhispr
+## How this differs from stock OpenWhispr
 
-These are patches to the app (version 1.9.2), described in [`patches/`](patches/README.md):
+Patches against OpenWhispr 1.9.2; details and code in [`patches/`](patches/README.md).
 
-- **Faster, private OpenRouter calls.** Every cleanup request asks for zero data retention, the lowest-latency provider and no reasoning, and caches the long system prompt (about 10x cheaper per cleanup).
-- **Spoken-number pre-pass.** A small converter turns "twenty x" into "20x" before the model sees the text, since the model alone misses sentence-initial numbers.
-- **Repeat cache.** If a transcript is identical to an earlier one, the earlier cleanup is reused instantly.
-- **Selection editing.** Select text, dictate an instruction ("make this all caps"), and the selection is edited instead of replaced. In places where you can't type, the result shows in a small popup.
-- **Smarter auto-learned dictionary.** After you correct a dictation, Haiku decides which words belong in the dictionary (names, product names, jargon), using the base form. Ordinary words and half-typed edits are rejected. The judge prompt is in [`prompts/dictionary-judge.txt`](prompts/dictionary-judge.txt).
-- **Reliable paste.** The clipboard is restored later when the computer is busy, so a slow machine never pastes the previous clipboard instead of the transcript.
-- **Leaked reasoning tags stripped** (`<think>`, stray code fences).
-- **Floating icon only while dictating.**
+**Speech**
+- Parakeet runs on the Mac's Neural Engine through FluidAudio (about 80x faster than real time); the stock CPU engine is only the fallback.
+- Recordings of 30 seconds or more have long pauses removed before decoding, so Parakeet can't invent words in them.
+- No more cutting every 15 seconds: clips under 30 seconds are decoded whole, longer ones are cut in natural pauses.
+
+**Cleanup**
+- Claude Haiku 5.5 through OpenRouter with zero data retention, the fastest provider and reasoning off. The long prompt is cached, about 10x cheaper per cleanup.
+- A custom cleanup prompt: keeps your wording, writes numbers as digits, adds paragraphs to longer dictations, makes lists only when you list things, and supports spoken editing commands.
+- Spoken numbers are converted to digits before Haiku sees the text, since the model alone misses some.
+- An identical transcript reuses its earlier cleanup instantly.
+- Leaked reasoning (`<think>` tags, stray code fences) is stripped.
+
+**Editing and dictionary**
+- Select text and speak an instruction ("make this all caps") to edit it instead of replacing it. Where you can't type, the result shows in a small popup.
+- Selection edits come back wrapped in tags, so the model's commentary is never pasted.
+- Auto-learned dictionary is stricter: it waits until you finish editing, saves names without "'s", and Haiku decides whether a word belongs, so common and half-typed words stay out.
+
+**Reliability and controls**
+- On a busy computer the old clipboard is restored later, so it never pastes the previous clipboard instead of your dictation.
+- Left Option works as the dictation key: tap to start and stop, hold to talk.
+- The floating icon only shows while you're dictating.
+
+**Phone**
+- A custom HeliBoard-based keyboard instead of OpenWhispr's mobile app: on-device Parakeet, the same Haiku cleanup, recording that survives app switches and rotation, voice editing of selected text, swipe typing, and nothing saved from private fields. See [`android/`](android/README.md).
 
 ## Mac extras
 
