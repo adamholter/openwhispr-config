@@ -1,0 +1,19 @@
+{
+  "_note": "OpenWhispr settings (localStorage keys). The cleanup prompt is prompts/cleanup.txt. Add your own OpenRouter key in the app.",
+  "settings": {
+    "transcriptionMode": "local",
+    "parakeetModel": "parakeet-tdt-0.6b-v3",
+    "useCleanupModel": "true",
+    "cleanupMode": "providers",
+    "cleanupProvider": "openrouter",
+    "cleanupCloudMode": "byok",
+    "cleanupModel": "anthropic/claude-haiku-5.5",
+    "dictationAgentMode": "providers",
+    "dictationAgentModel": "anthropic/claude-haiku-5.5",
+    "chatAgentMode": "providers",
+    "chatAgentProvider": "openrouter",
+    "chatAgentModel": "anthropic/claude-haiku-5.5",
+    "autoLearnCorrections": "true",
+    "floatingIconAutoHide": "true"
+  }
+}
