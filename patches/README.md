@@ -52,6 +52,10 @@ After a dictation is pasted and you edit it, OpenWhispr can learn words from you
 
 OpenWhispr pastes by putting the transcript on the clipboard, pressing Cmd+V and then restoring your old clipboard. On a busy machine the restore could run before the target app read the clipboard, so the previous clipboard was pasted. The restore delay now scales with system load (1.5 s up to 8 s). A new paste cancels a pending restore and keeps the original clipboard.
 
+## Long recordings
+
+The bundled CPU engine used to cut audio into fixed 15-second pieces, which could split a word. Clips up to 30 seconds are now decoded whole. Longer ones are cut at the quietest 100 ms in the 6 seconds before each 30-second mark.
+
 ## Local speech service (macOS)
 
 The Parakeet server first sends audio to the FluidAudio service on `127.0.0.1:6017` (see `mac/fluid-asr`) and falls back to the bundled sherpa server if it fails or times out.

@@ -5,7 +5,7 @@ A small HTTP service that keeps NVIDIA Parakeet TDT 0.6B v3 loaded through [Flui
 - `GET /health` → `{"ready":true}`
 - `POST /transcribe`, body raw float32 16 kHz mono → `{"text","duration","elapsedMs"}`
 
-Silero speech detection runs first and only the speech is decoded, which stops Parakeet from inventing words during long pauses. A short clip that comes back empty is retried once with silence padding.
+For recordings of 30 seconds or more, Silero speech detection runs first and only the speech is decoded, which stops Parakeet from inventing words during long pauses. Shorter clips are decoded exactly as recorded. It only accepts local requests (no browser Origin, Host must be localhost) and validates request sizes. A short clip that comes back empty is retried once with silence padding.
 
 ```sh
 swift build -c release

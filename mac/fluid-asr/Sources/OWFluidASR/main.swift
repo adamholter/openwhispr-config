@@ -18,6 +18,10 @@ let env = ProcessInfo.processInfo.environment
 let useVad = env["OWASR_VAD"] != "0"
 let vadThreshold = Float(env["OWASR_VAD_THRESHOLD"] ?? "") ?? 0.5
 let speechGapSeconds = 0.3
+// Clips shorter than this are decoded exactly as recorded; trimming pauses only pays off
+// (and only removes invented words) on long recordings.
+let vadMinSeconds = 30.0
+let maxBodyBytes = 64 << 20 // ~17 min of float32 audio
 
 actor Transcriber {
     private var manager: AsrManager?
@@ -42,7 +46,7 @@ actor Transcriber {
     // Long pauses are where Parakeet invents words, so only the detected speech
     // (with short joins) is decoded, in one pass to keep full context.
     private func speechOnly(_ samples: [Float]) async throws -> [Float] {
-        guard let vad else { return samples }
+        guard let vad, Double(samples.count) >= vadMinSeconds * Double(sampleRate) else { return samples }
         var config = VadSegmentationConfig.default
         config.maxSpeechDuration = 3600
         config.speechPadding = 0.25
@@ -96,6 +100,7 @@ final class Connection: @unchecked Sendable {
     private func receive() {
         conn.receive(minimumIncompleteLength: 1, maximumLength: 1 << 20) { data, _, done, error in
             if let data { self.buffer.append(data) }
+            if self.buffer.count > maxBodyBytes + 65_536 { self.conn.cancel(); return }
             if let request = self.parse() {
                 Task { await self.handle(request) }
             } else if done || error != nil {
@@ -113,12 +118,20 @@ final class Connection: @unchecked Sendable {
         let parts = lines.first?.split(separator: " ") ?? []
         guard parts.count >= 2 else { return ("BAD", "", Data()) }
         var length = 0
+        var host = ""
+        var hasOrigin = false
         for line in lines.dropFirst() {
             let kv = line.split(separator: ":", maxSplits: 1)
-            if kv.count == 2, kv[0].lowercased() == "content-length" {
-                length = Int(kv[1].trimmingCharacters(in: .whitespaces)) ?? 0
-            }
+            guard kv.count == 2 else { continue }
+            let name = kv[0].lowercased(), value = kv[1].trimmingCharacters(in: .whitespaces)
+            if name == "content-length" { length = Int(value) ?? -1 }
+            if name == "host" { host = value.lowercased() }
+            if name == "origin" { hasOrigin = true }
         }
+        // Local callers only: browsers always send Origin, and DNS-rebinding pages use a foreign Host.
+        let hostName = host.split(separator: ":").first.map(String.init) ?? ""
+        if hasOrigin || !["127.0.0.1", "localhost"].contains(hostName) { return ("FORBIDDEN", "", Data()) }
+        if length < 0 || length > maxBodyBytes || length % 4 != 0 { return ("BAD", "", Data()) }
         let bodyStart = end.upperBound
         guard buffer.count - bodyStart >= length else { return nil }
         return (String(parts[0]), String(parts[1]), buffer.subdata(in: bodyStart..<(bodyStart + length)))
@@ -126,12 +139,16 @@ final class Connection: @unchecked Sendable {
 
     private func handle(_ request: (method: String, path: String, body: Data)) async {
         switch (request.method, request.path) {
+        case ("FORBIDDEN", _):
+            respond(403, jsonData(["error": "forbidden"]))
+        case ("BAD", _):
+            respond(400, jsonData(["error": "bad request"]))
         case ("GET", "/health"):
             respond(200, jsonData(["ready": await transcriber.ready]))
         case ("POST", "/transcribe"):
-            let samples: [Float] = request.body.withUnsafeBytes { raw in
-                Array(raw.bindMemory(to: Float.self))
-            }
+            // Copy rather than rebind: the body buffer is not guaranteed to be Float-aligned.
+            var samples = [Float](repeating: 0, count: request.body.count / 4)
+            _ = samples.withUnsafeMutableBytes { request.body.copyBytes(to: $0) }
             let started = Date()
             do {
                 let result = try await transcriber.transcribe(samples)
