@@ -6,7 +6,7 @@ How I run [OpenWhispr](https://github.com/OpenWhispr/openwhispr) for dictation: 
 
 | Step | Model | Where it runs |
 | --- | --- | --- |
-| Speech to text | NVIDIA Parakeet TDT 0.6B v3 | Locally. On Apple Silicon Macs through [FluidAudio](https://github.com/FluidInference/FluidAudio) on the Neural Engine; on Linux and Android through the bundled sherpa-onnx build. |
+| Speech to text | NVIDIA Parakeet TDT 0.6B v3 (desktop), v2 int8 (phone) | Locally. On Apple Silicon Macs through [FluidAudio](https://github.com/FluidInference/FluidAudio) on the Neural Engine; on Linux through OpenWhispr's bundled sherpa-onnx engine; on Android through sherpa-onnx in the keyboard. |
 | Cleanup | Claude Haiku 5.5 (`anthropic/claude-haiku-5.5`) | OpenRouter, zero data retention, reasoning off |
 | Voice commands / assistant | Claude Haiku 5.5 | OpenRouter |
 
@@ -42,6 +42,10 @@ These are patches to the app (version 1.9.2), described in [`patches/`](patches/
 - [`mac/fluid-asr`](mac/fluid-asr/README.md): local Parakeet service on the Neural Engine, with speech detection so long pauses don't produce invented words.
 - [`mac/left-option`](mac/left-option/README.md): use Left Option as the dictation key: tap to start and stop, hold to talk.
 
-## Android
+## Android keyboard
 
-I also use a voice-first Android keyboard built on HeliBoard with the same models and cleanup prompt; see [`android/README.md`](android/README.md).
+The keyboard I use on my phone is in [`android/`](android/README.md): a voice-first fork of HeliBoard with on-device Parakeet, the same Haiku cleanup, recording that survives switching apps, and voice editing of selected text. Build it, then run `android/configure.sh` with your OpenRouter key.
+
+## License
+
+`android/keyboard` is a HeliBoard fork and stays under GPL-3.0 (its `LICENSE`). Everything else here is MIT.

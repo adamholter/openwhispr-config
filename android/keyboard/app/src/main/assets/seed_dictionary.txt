@@ -1,0 +1,4 @@
+OpenWhispr
+OpenRouter
+Parakeet
+Haiku
