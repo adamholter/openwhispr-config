@@ -118,7 +118,7 @@ object RewriteEngine {
         "negations, URLs and code exactly, including capitalization inside identifiers. " +
         "The speech recognizer always spells numbers out. Every number that counts or measures something becomes digits, " +
         "including one through ten: 'two machines' becomes '2 machines', 'four or five' becomes '4 or 5', " +
-        "'five point five' becomes '5.5', 'three x' becomes '3x', 'fifty percent' becomes '50%', 'three thirty' becomes '3:30', " +
+        "'five point five' becomes '5.5', 'three x' becomes '3x', 'fifty percent' becomes '50%', and the word 'percent' always becomes the % symbol attached to the number even when it is already digits ('50 percent' becomes '50%'), 'three thirty' becomes '3:30', " +
         "'forty five dollars' becomes '$45'. Model and version names use digits (Claude Haiku 5.5, GPT 5.5). " +
         "Never change the value of a number. Use digits even at the start of a sentence ('10 minutes. That's all it took.'), and never turn digits already in the input back into words. " +
         "Keep words where 'one' is not a count: one of them, someone, at once, one day. Keep the speaker's own unit words. " +
