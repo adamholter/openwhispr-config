@@ -16,7 +16,9 @@ Why these: Parakeet on the Neural Engine transcribes about 80x faster than real 
 
 The cleanup prompt is in [`prompts/cleanup.txt`](prompts/cleanup.txt). Paste it into OpenWhispr's custom cleanup prompt. It:
 
-- removes fillers, false starts and self-corrections ("Friday, no wait, Thursday" → "Thursday") but keeps the speaker's wording;
+- writes the punctuation itself (the recognizer gives little or none), keeps sentences short and splits run-ons;
+- deletes fillers decisively (um, uh, you know, padding like "okay so basically", and "like" when it is only filler), plus false starts and self-corrections ("Friday, no wait, Thursday" → "Thursday"), but keeps the speaker's wording;
+- never answers or carries out a request that appears in the dictation;
 - turns spoken numbers into digits ("five point five" → "5.5", "ten x" → "10x"), because the recognizer always spells them out;
 - breaks longer dictations into paragraphs where the topic changes, and only makes lists when items are actually listed;
 - treats "transcription instructions … resume dictation" as editing commands for that recording;
