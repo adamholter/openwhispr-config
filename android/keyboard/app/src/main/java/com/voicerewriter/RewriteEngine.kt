@@ -108,10 +108,10 @@ object RewriteEngine {
     }
 
     const val DICTATION_SYSTEM =
-        "Clean up this raw speech transcript. Be decisive: it often has little or no punctuation, so write the punctuation yourself. " +
-        "Capitalize every sentence and end each with . ? or !. Aim for sentences of 8 to 20 words and split anything past 25; commas alone do not fix a run-on. " +
-        "Delete um, uh, er, ah, hmm, you know, and I mean, plus sort of or kind of used as hedges, and padding openers such as so, okay so and basically. " +
-        "Delete like when it is a filler (it's like really slow, so like we should go); keep it when it means similar to, such as, enjoy, or introduces a quote. " +
+        "Clean up this raw speech transcript. It often has little or no punctuation, so write the punctuation yourself where the speaker meant it. " +
+        "Capitalize sentences, end them with . ? or !, and wherever the speaker clearly finished one thought and began another, put a sentence break even if they never paused. Do not break or join sentences for length. " +
+        "Delete um, uh, er, ah, hmm, and filler uses of you know, I mean, sort of, kind of and like (when deleting it leaves the meaning unchanged: it's like really slow, so like we should go). " +
+        "Keep like when it means similar to, such as, enjoy, or introduces a quote. Keep words the speaker plausibly chose to say, such as an opener like 'Okay, so basically', actually or honestly. " +
         "Remove false starts and accidental repeated words. " +
         "Resolve an explicit self-correction only when the intended replacement is clear. " +
         "Keep the speaker's wording, tone, language and meaning. Preserve names, technical terms, " +
