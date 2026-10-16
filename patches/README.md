@@ -38,7 +38,7 @@ if (out.trim()) cache.set(key, out);
 
 ## Selection editing
 
-When dictation starts with text selected, the selection and the spoken instruction go to the model in selection-edit mode. The model must answer as `<replacement>…</replacement>`, and anything outside the tags is dropped, so an explanation can never be pasted. If the selected text isn't editable (a web page), the answer opens in the assistant panel instead.
+When dictation starts with text selected, the selection and the spoken instruction go to the model in selection-edit mode. The model must answer as `<replacement>…</replacement>`, and anything outside the tags is dropped, so an explanation can never be pasted. If the selected text isn't editable (a web page), the answer opens in the assistant panel instead. On macOS, editability is checked by [`mac/ax-editable`](../mac/ax-editable/README.md), because the stock probe reports every field with a selection as read-only.
 
 ## Dictionary auto-learn
 

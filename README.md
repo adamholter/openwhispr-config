@@ -58,6 +58,7 @@ Patches against OpenWhispr 1.9.2; details and code in [`patches/`](patches/READM
 ## Mac extras
 
 - [`mac/fluid-asr`](mac/fluid-asr/README.md): local Parakeet service on the Neural Engine, with speech detection so long pauses don't produce invented words.
+- [`mac/ax-editable`](mac/ax-editable/README.md): tells selection editing whether the selected text can be replaced.
 - [`mac/left-option`](mac/left-option/README.md): use Left Option as the dictation key: tap to start and stop, hold to talk.
 
 ## Android keyboard
