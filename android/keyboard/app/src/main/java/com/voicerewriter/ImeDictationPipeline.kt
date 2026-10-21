@@ -293,7 +293,7 @@ object ImeDictationPipeline {
             status(if(hasInstructions)"Applying instructions" else "Cleaning up")
             try{
                 val out=StringBuilder();RewriteEngine.streamDictationCleanup(settings,cleaned,vocab.filter{!it.isSnippet}.map{it.canonical}).collect{out.append(it)}
-                val polished=if(hasInstructions)DictationInstructions.readResponse(out.toString()) else out.toString().trim()
+                val polished=if(hasInstructions)DictationInstructions.readResponse(out.toString()) else out.toString().replace(Regex("</?transcript>"),"").trim()
                 if(DictationInstructions.accepts(cleaned,polished))cleaned=polished
             }catch(e:CancellationException){throw e}catch(e:Exception){
                 // An instruction failure must remain retryable, never paste the command itself.
