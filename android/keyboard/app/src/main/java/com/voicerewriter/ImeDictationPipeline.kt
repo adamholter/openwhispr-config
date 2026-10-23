@@ -294,6 +294,8 @@ object ImeDictationPipeline {
             try{
                 val out=StringBuilder();RewriteEngine.streamDictationCleanup(settings,cleaned,vocab.filter{!it.isSnippet}.map{it.canonical}).collect{out.append(it)}
                 val polished=if(hasInstructions)DictationInstructions.readResponse(out.toString()) else out.toString().replace(Regex("</?transcript>"),"").trim()
+                if(hasInstructions&&polished.isBlank()&&cleaned.trim().split(Regex("\\s+")).size>=12&&!Regex("(?i)\\b(delete|remove|clear|erase|wipe|get rid)").containsMatchIn(cleaned))
+                    throw IllegalStateException("Instructions returned empty text. Recording saved for retry.")
                 if(DictationInstructions.accepts(cleaned,polished))cleaned=polished
             }catch(e:CancellationException){throw e}catch(e:Exception){
                 // An instruction failure must remain retryable, never paste the command itself.
@@ -353,7 +355,11 @@ object ImeDictationPipeline {
         status("Editing")
         val out=StringBuilder()
         RewriteEngine.streamInstruction(settings,instruction,target.text).collect{out.append(it)}
-        return DictationInstructions.readResponse(out.toString())
+        val result=DictationInstructions.readResponse(out.toString())
+        // An empty replacement would wipe the selection; only honor it when the speaker asked to delete.
+        if(result.isBlank()&&target.text.isNotBlank()&&!Regex("(?i)\\b(delete|remove|clear|erase|wipe|get rid)").containsMatchIn(instruction))
+            throw IllegalStateException("Edit returned empty text. Original kept.")
+        return result
     }
 
     /** Emulator-only, shell-permission-gated QA. Injects a recognized instruction, never opens a mic. */
