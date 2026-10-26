@@ -159,6 +159,7 @@ fun upgradeToolbarPrefs(prefs: SharedPreferences) {
 
 // OpenWhispr: one-time move of the emoji key into the expandable toolbar, right after the voice key.
 fun enableEmojiToolbarKey(prefs: SharedPreferences) {
+    enableClipboardHistory(prefs)
     val flag = "ow_emoji_toolbar_v1"
     if (prefs.getBoolean(flag, false)) return
     prefs.edit { putBoolean(flag, true) }
@@ -293,3 +294,14 @@ private fun repeatToolbarKey(view: View, onClick: (view: View) -> Unit) {
 }
 
 private var customToolbarKeyCodes: EnumMap<ToolbarKey, Pair<Int?, Int?>>? = null
+
+// OpenWhispr: the clipboard key opens history instead of pasting; keep clips for 2 hours (pinned clips never expire).
+private fun enableClipboardHistory(prefs: SharedPreferences) {
+    val flag = "ow_clipboard_history_v1"
+    if (prefs.getBoolean(flag, false)) return
+    prefs.edit {
+        putBoolean(flag, true)
+        putBoolean(Settings.PREF_ENABLE_CLIPBOARD_HISTORY, true)
+        putInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, 120)
+    }
+}
