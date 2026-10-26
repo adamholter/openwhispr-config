@@ -302,6 +302,8 @@ private fun enableClipboardHistory(prefs: SharedPreferences) {
     prefs.edit {
         putBoolean(flag, true)
         putBoolean(Settings.PREF_ENABLE_CLIPBOARD_HISTORY, true)
-        putInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, 120)
+        // only raise the old 10 minute default; a retention the user picked themselves stays
+        if (prefs.getInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, 10) <= 10)
+            putInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, 120)
     }
 }
