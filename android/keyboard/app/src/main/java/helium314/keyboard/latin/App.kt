@@ -42,6 +42,7 @@ class App : Application() {
         RichInputMethodManager.init(this)
         checkVersionUpgrade(this)
         helium314.keyboard.latin.utils.enableEmojiToolbarKey(prefs())
+        installBundledEmojiDict()
         if (BuildConfig.DEBUG) // do this on every debug apk start because we may work on adding a new toolbar key
             upgradeToolbarPrefs(prefs())
         transferOldPinnedClips(this) // todo: remove in a few months, maybe end 2026
@@ -60,5 +61,17 @@ class App : Application() {
             app = null
             return application
         }
+    }
+
+    // OpenWhispr: ship the CLDR emoji dictionary so the emoji palette's search key is available out of the box.
+    private fun installBundledEmojiDict() = CoroutineScope(Dispatchers.IO).launch {
+        try {
+            listOf(java.util.Locale.US, java.util.Locale.UK, java.util.Locale.ENGLISH).forEach { locale ->
+                val dir = helium314.keyboard.latin.utils.DictionaryInfoUtils.getCacheDirectoryForLocale(locale, this@App) ?: return@forEach
+                val target = java.io.File(dir, "emoji_en.dict")
+                if (target.exists() && target.length() > 0) return@forEach
+                assets.open("emoji_dicts/emoji_en.dict").use { input -> target.outputStream().use { input.copyTo(it) } }
+            }
+        } catch (e: Exception) { Log.w("App", "emoji dict install failed", e) }
     }
 }
