@@ -15,8 +15,8 @@ android {
         applicationId = "com.voicerewriter"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5030
-        versionName = "2.2.17"
+        versionCode = 5031
+        versionName = "2.2.18"
         ndk {
             abiFilters.clear()
             abiFilters.addAll(listOf("arm64-v8a"))

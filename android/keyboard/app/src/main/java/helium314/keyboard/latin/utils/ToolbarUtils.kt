@@ -131,7 +131,7 @@ enum class ToolbarMode {
 val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java)) { it.toString().lowercase(Locale.US) }
 
 val defaultToolbarPref by lazy {
-    val default = listOf(SETTINGS, VOICE, CLIPBOARD, UNDO, REDO, SELECT_WORD, COPY, PASTE, LEFT, RIGHT)
+    val default = listOf(SETTINGS, VOICE, EMOJI, CLIPBOARD, UNDO, REDO, SELECT_WORD, COPY, PASTE, LEFT, RIGHT)
     val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }
@@ -154,6 +154,19 @@ fun upgradeToolbarPrefs(prefs: SharedPreferences) {
     upgradeToolbarPref(prefs, Settings.PREF_TOOLBAR_KEYS, defaultToolbarPref)
     upgradeToolbarPref(prefs, Settings.PREF_PINNED_TOOLBAR_KEYS, defaultPinnedToolbarPref)
     upgradeToolbarPref(prefs, Settings.PREF_CLIPBOARD_TOOLBAR_KEYS, defaultClipboardToolbarPref)
+    enableEmojiToolbarKey(prefs)
+}
+
+// OpenWhispr: one-time move of the emoji key into the expandable toolbar, right after the voice key.
+fun enableEmojiToolbarKey(prefs: SharedPreferences) {
+    val flag = "ow_emoji_toolbar_v1"
+    if (prefs.getBoolean(flag, false)) return
+    prefs.edit { putBoolean(flag, true) }
+    if (!prefs.contains(Settings.PREF_TOOLBAR_KEYS)) return
+    val list = prefs.getString(Settings.PREF_TOOLBAR_KEYS, defaultToolbarPref)!!.split(Separators.ENTRY).toMutableList()
+    list.removeAll { it.startsWith(EMOJI.name + Separators.KV) }
+    list.add(list.indexOfFirst { it.startsWith(VOICE.name + Separators.KV) } + 1, EMOJI.name + Separators.KV + "true")
+    prefs.edit { putString(Settings.PREF_TOOLBAR_KEYS, list.joinToString(Separators.ENTRY)) }
 }
 
 private fun upgradeToolbarPref(prefs: SharedPreferences, pref: String, default: String) {
