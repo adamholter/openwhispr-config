@@ -130,12 +130,14 @@ object ImeDictationPipeline {
     }
     private fun appLabel(context:Context,pkg:String):String=runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg,0)).toString() }.getOrDefault(pkg)
     /** Keep a just-captured take recoverable when the input view disappears mid-stop. */
-    private suspend fun preserveForRetry(context:Context,samples:ShortArray,session:VoiceEditorSession,duration:Int){
+    private suspend fun preserveForRetry(context:Context,samples:ShortArray,session:VoiceEditorSession,duration:Int,cancelled:Boolean=false){
         withContext(NonCancellable+Dispatchers.IO){
             val settings=SettingsRepository(context).get()
-            PendingAudio.begin(context,samples,duration,session.packageName,appLabel(context,session.packageName),settings.sttProvider,settings.sttModelResolved)?.let{PendingAudio.release(it.id)}
+            PendingAudio.begin(context,samples,duration,session.packageName,appLabel(context,session.packageName),settings.sttProvider,settings.sttModelResolved)?.let{if(cancelled)PendingAudio.markCancelled(context,it.id) else PendingAudio.release(it.id)}
         }
     }
+    /** An explicit Cancel keeps the audio unless it was trivially short or the user wants no history. */
+    private fun keepCancelled(context:Context,duration:Int)=duration>=2&&DictationHistory.keepHistory(context)
     private fun stop(host:VoiceInputHost,session:VoiceEditorSession,recording:AudioRecorder,fromNotification:Boolean=false){
         recorder=null
         commitSession=session
@@ -153,6 +155,7 @@ object ImeDictationPipeline {
             var samples:ShortArray?=null
             var pending:PendingRecording?=null
             var stagingAttempted=false
+            var committed=false
             try{
                 // Keep the assignment inside the non-cancellable region. If cancellation lands
                 // while the dispatcher resumes, the captured buffer still reaches the recovery
@@ -181,6 +184,7 @@ object ImeDictationPipeline {
                 }else{
                     host.isSelectionCurrent(selection)&&host.commitSelectionEdit(selection,result.second)
                 }
+                committed=inserted&&result.second.isNotEmpty()
                 if(private()||(selection?.session ?: session).incognito){
                     // Incognito editors: nothing is kept or synced, and the audio is deleted.
                     withContext(NonCancellable+Dispatchers.IO){PendingAudio.discard(context,record.id)}
@@ -215,12 +219,19 @@ object ImeDictationPipeline {
                 // If cancellation won before the write-ahead stage, retain the in-memory take so
                 // a disappearing input view cannot silently lose a recording. Once staging was
                 // attempted, the existing row is the durable source of truth.
-                if(selection==null&&!private()&&pending==null&&!stagingAttempted&&samples!=null&&!discardFlag.get())
-                    preserveForRetry(context,samples!!,session,duration)
-                pending?.let{withContext(NonCancellable+Dispatchers.IO){if(discardFlag.get()||selection!=null)PendingAudio.discard(context,it.id) else PendingAudio.release(it.id)}}
+                val userCancel=discardFlag.get()
+                if(selection==null&&!private()&&pending==null&&!stagingAttempted&&samples!=null&&(!userCancel||keepCancelled(context,duration)))
+                    preserveForRetry(context,samples!!,session,duration,cancelled=userCancel)
+                pending?.let{withContext(NonCancellable+Dispatchers.IO){
+                    if(selection!=null||private()||(userCancel&&!keepCancelled(context,duration)))PendingAudio.discard(context,it.id)
+                    else if(userCancel)PendingAudio.markCancelled(context,it.id)
+                    else PendingAudio.release(it.id)}}
             }catch(e:Exception){
                 val keep=selection==null&&!private()
                 pending?.let{withContext(NonCancellable+Dispatchers.IO){if(keep)PendingAudio.release(it.id) else PendingAudio.discard(context,it.id)}}
+                // The text already landed; only the history write failed. Never report that as
+                // a failed take, which invites a retry that would paste it twice.
+                if(committed){host.setVoiceStatus("Inserted. History save failed.");host.returnToVoice();return@launch}
                 host.setVoiceStatus(when{selection!=null->"Edit failed. Original kept."
                     private()->"Failed: ${e.message.orEmpty().take(90)}"
                     else->"Saved for retry: ${e.message.orEmpty().take(90)}"})
@@ -444,7 +455,7 @@ object ImeDictationPipeline {
             return result.second
         }finally{PendingAudio.release(id)}
     }
-    /** Explicit Cancel discards the active take. Lifecycle cancellation preserves audio for history retry. */
+    /** Explicit Cancel keeps the audio in history as "Cancelled" for 7 days. Lifecycle cancellation preserves it as an interrupted take. */
     @Synchronized
     fun cancel(discard:Boolean=true){
         discardActive.set(discard)
@@ -462,8 +473,8 @@ object ImeDictationPipeline {
             val duration=((System.currentTimeMillis()-startedAt)/1000).toInt().coerceAtLeast(1)
             val cleanup=scope.launch(Dispatchers.IO){
                 val samples=withContext(NonCancellable+Dispatchers.IO){capture.stop()}
-                if(!discard&&!cancelledTake.incognito&&selection==null&&samples!=null&&app!=null&&host!=null&&session!=null)
-                    preserveForRetry(app,samples,session,duration)
+                if((!discard||(app!=null&&keepCancelled(app,duration)))&&!cancelledTake.incognito&&selection==null&&samples!=null&&app!=null&&host!=null&&session!=null)
+                    preserveForRetry(app,samples,session,duration,cancelled=discard)
             }
             captureCleanup=cleanup
             cleanup.invokeOnCompletion{if(captureCleanup===cleanup)captureCleanup=null}

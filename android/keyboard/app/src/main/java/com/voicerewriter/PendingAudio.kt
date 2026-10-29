@@ -39,6 +39,8 @@ data class PendingRecording(
     val sttModel: String,
     /** The delivered text, or null for "not yet, or interrupted". Never a running marker. */
     val result: String?,
+    /** The user pressed Cancel. The audio is kept for a few days so an accidental cancel can be recovered. */
+    val cancelled: Boolean = false,
 ) {
     val settled: Boolean get() = result != null
 
@@ -46,7 +48,7 @@ data class PendingRecording(
         .put("id", id).put("ts", timestamp).put("dur", durationSec)
         .put("pkg", appPackage).put("app", appLabel)
         .put("sttProvider", sttProvider).put("sttModel", sttModel)
-        .apply { if (result != null) put("result", result) }
+        .apply { if (result != null) put("result", result); if (cancelled) put("cancelled", true) }
 
     companion object {
         fun fromJson(o: JSONObject) = PendingRecording(
@@ -60,6 +62,7 @@ data class PendingRecording(
             // `has` rather than `optString`: absence is the meaningful state, and "" is a
             // legitimate (if useless) terminal result we must not confuse with it.
             result = if (o.has("result")) o.optString("result") else null,
+            cancelled = o.optBoolean("cancelled", false),
         )
     }
 }
@@ -135,6 +138,18 @@ object PendingAudio {
         inFlight.add(id)
         rec
     }.getOrNull()
+
+    /** Flag a kept recording as user-cancelled so history can label it and retention can expire it. */
+    fun markCancelled(c: Context, id: String) {
+        inFlight.remove(id)
+        runCatching {
+            val rec = get(c, id) ?: return
+            metaFile(c, id).writeText(rec.copy(cancelled = true).toJson().toString())
+        }
+    }
+
+    /** Cancelled takes are kept this long; a retry that settles them follows the normal retention. */
+    const val CANCELLED_KEEP_DAYS = 7
 
     /** Note that a live attempt has picked this recording up again (retry from disk). */
     fun claim(id: String) { inFlight.add(id) }
@@ -215,7 +230,9 @@ object PendingAudio {
     fun expired(records: List<PendingRecording>, keepDays: Int, now: Long): List<String> {
         val settled = records.filter { it.settled }.sortedByDescending { it.timestamp }
         val cutoff = if (keepDays <= 0) Long.MIN_VALUE else now - keepDays * 24L * 60L * 60L * 1000L
-        return settled.filterIndexed { i, rec -> rec.timestamp < cutoff || i >= MAX_KEEP }.map { it.id }
+        val cancelCutoff = now - CANCELLED_KEEP_DAYS * 24L * 60L * 60L * 1000L
+        val oldCancelled = records.filter { it.cancelled && !it.settled && it.timestamp < cancelCutoff }.map { it.id }
+        return settled.filterIndexed { i, rec -> rec.timestamp < cutoff || i >= MAX_KEEP }.map { it.id } + oldCancelled
     }
 
     /**

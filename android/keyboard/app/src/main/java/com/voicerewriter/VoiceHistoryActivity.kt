@@ -29,9 +29,42 @@ class VoiceHistoryActivity: Activity() {
     override fun onResume(){super.onResume();render()}
     override fun onDestroy(){scope.cancel();super.onDestroy()}
     private fun copy(text:String){(getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Dictation",text));Toast.makeText(this,"Copied",Toast.LENGTH_SHORT).show()}
+    private val accent=android.graphics.Color.rgb(138,180,248)
+    private val cardColor=android.graphics.Color.rgb(58,58,62)
+    private fun round(color:Int,r:Int=14)=android.graphics.drawable.GradientDrawable().apply{setColor(color);cornerRadius=dp(r).toFloat()}
+    private fun pill(text:String,primary:Boolean=false,action:()->Unit)=Button(this).apply{
+        this.text=text;isAllCaps=false;textSize=13f;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0
+        setPadding(dp(16),0,dp(16),0)
+        if(primary){setTextColor(android.graphics.Color.rgb(20,24,36));background=round(accent,20)}
+        else{setTextColor(android.graphics.Color.WHITE);background=round(0xFF4A4A50.toInt(),20)}
+        stateListAnimator=null
+        setOnClickListener{action()}
+        layoutParams=LinearLayout.LayoutParams(-2,dp(38)).apply{rightMargin=dp(8)}
+    }
+    private fun badge(text:String,color:Int)=TextView(this).apply{
+        this.text=text.uppercase();textSize=10f;setTextColor(color);letterSpacing=0.08f
+        setPadding(dp(8),dp(2),dp(8),dp(2));background=round((color and 0xFFFFFF) or 0x33000000,8)
+    }
+    private fun card(parent:LinearLayout):LinearLayout{
+        val c=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(14),dp(16),dp(14));background=round(cardColor)}
+        parent.addView(c,LinearLayout.LayoutParams(-1,-2).apply{bottomMargin=dp(10)});return c
+    }
+    private fun sectionTitle(parent:LinearLayout,text:String){
+        parent.addView(label(text.uppercase(),11f,muted).apply{letterSpacing=0.1f;setPadding(dp(4),dp(14),0,dp(6))})
+    }
+    private fun dayLabel(ts:Long):String{
+        val flags=android.text.format.DateUtils.FORMAT_SHOW_DATE or android.text.format.DateUtils.FORMAT_SHOW_WEEKDAY
+        return when{
+            android.text.format.DateUtils.isToday(ts)->"Today"
+            android.text.format.DateUtils.isToday(ts+86_400_000L)->"Yesterday"
+            else->android.text.format.DateUtils.formatDateTime(this,ts,flags)
+        }
+    }
+    private fun clock(ts:Long)=android.text.format.DateUtils.formatDateTime(this,ts,android.text.format.DateUtils.FORMAT_SHOW_TIME)
+    private fun duration(sec:Int)=if(sec<60)"${sec}s" else "${sec/60}m ${sec%60}s"
     private fun render(){
         loadJob?.cancel()
-        content=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(18),dp(24),dp(24))}
+        content=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(24))}
         val scroll=ScrollView(this).apply{setBackgroundColor(this@VoiceHistoryActivity.background);clipToPadding=false;addView(content)}
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(scroll){v,insets->
             val bars=insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
@@ -39,42 +72,85 @@ class VoiceHistoryActivity: Activity() {
         }
         setContentView(scroll)
         androidx.core.view.ViewCompat.requestApplyInsets(scroll)
-        val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
-        header.addView(label("OpenWhispr",25f),LinearLayout.LayoutParams(0,-2,1f))
-        header.addView(button("Settings"){settingsDialog()});content.addView(header)
-        val subhead=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
-        subhead.addView(label("History",18f,muted),LinearLayout.LayoutParams(0,-2,1f))
-        subhead.addView(button("Refresh"){render()});content.addView(subhead)
-        val page=content
+        val header=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL;setPadding(dp(4),0,0,dp(8))}
+        header.addView(label("History",26f),LinearLayout.LayoutParams(0,-2,1f))
+        header.addView(pill("Refresh"){render()});header.addView(pill("Settings"){settingsDialog()})
+        content.addView(header)
+        val search=EditText(this).apply{
+            hint="Search dictations";setHintTextColor(muted);setTextColor(android.graphics.Color.WHITE);textSize=15f;setSingleLine(true)
+            background=round(cardColor,22);setPadding(dp(18),0,dp(18),0)
+        }
+        content.addView(search,LinearLayout.LayoutParams(-1,dp(46)).apply{bottomMargin=dp(6)})
+        val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};content.addView(list)
         loadJob=scope.launch{
             val pending=withContext(Dispatchers.IO){PendingAudio.unfinished(applicationContext)}
-            pending.forEach{record->
-                val group=LinearLayout(this@VoiceHistoryActivity).apply{orientation=LinearLayout.VERTICAL}
-                group.addView(label("Recording ready to retry",17f))
-                group.addView(label("${DateFormat.getDateTimeInstance().format(Date(record.timestamp))} · ${record.durationSec}s",13f,muted))
-                val state=label("Your audio is saved on this device.",15f,muted);group.addView(state)
-                val retry=button("Retry"){}
-                retry.isEnabled=retryJobs[record.id]?.isActive!=true
-                retry.setOnClickListener{
-                    retry.isEnabled=false;state.text="Transcribing saved recording…"
-                    retryJobs[record.id]=scope.launch{
-                        try{val result=ImeDictationPipeline.retryToHistory(applicationContext,record.id);state.text=result;state.setTextColor(android.graphics.Color.WHITE);retry.text="Copy";retry.isEnabled=true;retry.setOnClickListener{copy(result)}}
-                        catch(e:CancellationException){throw e}
-                        catch(e:Exception){state.text="Could not transcribe. Your audio is still saved. ${e.message.orEmpty().take(100)}";retry.isEnabled=true}
-                        finally{retryJobs.remove(record.id)}
-                    }
-                }
-                group.addView(retry);page.addView(group);separator(page)
-            }
             val entries=withContext(Dispatchers.IO){DictationHistory.all(applicationContext)}
-            if(entries.isEmpty()&&pending.isEmpty())page.addView(label("Your dictations will appear here.",17f,muted).apply{setPadding(0,dp(44),0,dp(44))})
-            entries.take(visibleCount).forEach{entry->
-                page.addView(label("${DateFormat.getDateTimeInstance().format(Date(entry.timestamp))} · ${entry.appLabel}",13f,muted))
-                page.addView(label(entry.after,18f).apply{setLineSpacing(dp(3).toFloat(),1f)})
-                page.addView(button("Copy"){copy(entry.after)});separator(page)
+            fun fill(query:String){
+                list.removeAllViews()
+                val q=query.trim().lowercase()
+                val rows=if(q.isEmpty())entries else entries.filter{it.after.lowercase().contains(q)||it.appLabel.lowercase().contains(q)}
+                if(q.isEmpty()&&pending.isNotEmpty()){
+                    sectionTitle(list,"Needs attention · ${pending.size}")
+                    pending.forEach{pendingCard(list,it)}
+                }
+                if(rows.isEmpty()&&pending.isEmpty()){
+                    list.addView(label(if(q.isEmpty())"Your dictations will appear here." else "No matches.",17f,muted).apply{setPadding(0,dp(44),0,dp(44));gravity=android.view.Gravity.CENTER})
+                }
+                var lastDay=""
+                rows.take(visibleCount).forEach{entry->
+                    val day=dayLabel(entry.timestamp)
+                    if(day!=lastDay){sectionTitle(list,day);lastDay=day}
+                    val c=card(list)
+                    val meta=LinearLayout(this@VoiceHistoryActivity).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
+                    meta.addView(label("${clock(entry.timestamp)} · ${entry.appLabel}",12f,muted).apply{setPadding(0,0,0,dp(4))},LinearLayout.LayoutParams(0,-2,1f))
+                    c.addView(meta)
+                    c.addView(label(entry.after,17f).apply{setLineSpacing(dp(3).toFloat(),1f);setPadding(0,dp(2),0,dp(8))})
+                    val actions=LinearLayout(this@VoiceHistoryActivity).apply{orientation=LinearLayout.HORIZONTAL}
+                    actions.addView(pill("Copy"){copy(entry.after)})
+                    actions.addView(pill("Delete"){confirmDelete("Delete this dictation?"){DictationHistory.delete(applicationContext,entry.id);render()}})
+                    c.addView(actions)
+                }
+                if(rows.size>visibleCount)list.addView(pill("Load older",false){visibleCount+=100;render()})
             }
-            if(entries.size>visibleCount)page.addView(button("Load older"){visibleCount+=100;render()})
+            fill("")
+            search.addTextChangedListener(object:android.text.TextWatcher{
+                override fun afterTextChanged(s:android.text.Editable?){fill(s?.toString().orEmpty())}
+                override fun beforeTextChanged(s:CharSequence?,a:Int,b:Int,c:Int){}
+                override fun onTextChanged(s:CharSequence?,a:Int,b:Int,c:Int){}
+            })
         }
+    }
+    private fun confirmDelete(message:String,action:()->Unit){
+        AlertDialog.Builder(this,android.app.AlertDialog.THEME_DEVICE_DEFAULT_DARK).setMessage(message)
+            .setNegativeButton("Keep",null).setPositiveButton("Delete"){_,_->action()}.show()
+    }
+    private fun pendingCard(parent:LinearLayout,record:PendingRecording){
+        val c=card(parent)
+        val top=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
+        top.addView(badge(if(record.cancelled)"Cancelled" else "Interrupted",if(record.cancelled)0xFFF2B35E.toInt() else 0xFFE87C7C.toInt()))
+        top.addView(label("  ${dayLabel(record.timestamp)} ${clock(record.timestamp)} · ${duration(record.durationSec)}",12f,muted).apply{setPadding(dp(6),0,0,0)})
+        c.addView(top)
+        val state=label(if(record.cancelled)"You cancelled this. The audio is saved on this device for ${PendingAudio.CANCELLED_KEEP_DAYS} days." else "Your audio is saved on this device.",14f,muted).apply{setPadding(0,dp(8),0,dp(8))}
+        c.addView(state)
+        val actions=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        lateinit var retry:Button
+        retry=pill("Transcribe",true){
+            retry.isEnabled=false;state.text="Transcribing saved recording…"
+            retryJobs[record.id]=scope.launch{
+                try{
+                    val result=ImeDictationPipeline.retryToHistory(applicationContext,record.id)
+                    state.text=result;state.setTextColor(android.graphics.Color.WHITE);state.textSize=17f
+                    retry.text="Copy";retry.isEnabled=true;retry.setOnClickListener{copy(result)}
+                }
+                catch(e:CancellationException){throw e}
+                catch(e:Exception){state.text="Could not transcribe. Your audio is still saved. ${e.message.orEmpty().take(100)}";retry.isEnabled=true}
+                finally{retryJobs.remove(record.id)}
+            }
+        }
+        retry.isEnabled=retryJobs[record.id]?.isActive!=true
+        actions.addView(retry)
+        actions.addView(pill("Delete"){confirmDelete("Delete this recording? The audio cannot be recovered."){PendingAudio.discard(applicationContext,record.id);render()}})
+        c.addView(actions)
     }
     private fun settingsDialog(){scope.launch{
         val repo=SettingsRepository(applicationContext);val existing=repo.get()
