@@ -50,5 +50,5 @@ object DictationInstructions {
         return value.getString("text")
     }
     fun accepts(input: String, output: String): Boolean = requested(input) ||
-        (output.isNotBlank() && RewriteEngine.preservesContent(input, output, RewriteEngine.hasSelfCorrection(input)))
+        (output.isNotBlank() && RewriteEngine.preservesContent(input, output, RewriteEngine.hasSelfCorrection(input)) && RewriteEngine.addsLittleNewContent(input, output))
 }

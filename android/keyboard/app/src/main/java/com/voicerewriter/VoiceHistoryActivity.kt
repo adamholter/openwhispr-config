@@ -89,21 +89,19 @@ class VoiceHistoryActivity: Activity() {
                 list.removeAllViews()
                 val q=query.trim().lowercase()
                 val rows=if(q.isEmpty())entries else entries.filter{it.after.lowercase().contains(q)||it.appLabel.lowercase().contains(q)}
-                if(q.isEmpty()&&pending.isNotEmpty()){
-                    sectionTitle(list,"Needs attention · ${pending.size}")
-                    pending.forEach{pendingCard(list,it)}
-                }
-                if(rows.isEmpty()&&pending.isEmpty()){
+                if(rows.isEmpty()&&(q.isNotEmpty()||pending.isEmpty())){
                     list.addView(label(if(q.isEmpty())"Your dictations will appear here." else "No matches.",17f,muted).apply{setPadding(0,dp(44),0,dp(44));gravity=android.view.Gravity.CENTER})
                 }
+                // One timeline: saved recordings sit in line with finished dictations by time.
+                val timeline=(rows.take(visibleCount).map{it.timestamp to (it as Any)}+(if(q.isEmpty())pending.map{it.timestamp to (it as Any)} else emptyList())).sortedByDescending{it.first}
                 var lastDay=""
-                rows.take(visibleCount).forEach{entry->
-                    val day=dayLabel(entry.timestamp)
+                timeline.forEach{(ts,item)->
+                    val day=dayLabel(ts)
                     if(day!=lastDay){sectionTitle(list,day);lastDay=day}
+                    if(item is PendingRecording){pendingCard(list,item);return@forEach}
+                    val entry=item as DictationEntry
                     val c=card(list)
-                    val meta=LinearLayout(this@VoiceHistoryActivity).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
-                    meta.addView(label("${clock(entry.timestamp)} · ${entry.appLabel}",12f,muted).apply{setPadding(0,0,0,dp(4))},LinearLayout.LayoutParams(0,-2,1f))
-                    c.addView(meta)
+                    c.addView(label("${clock(entry.timestamp)} · ${entry.appLabel}",12f,muted).apply{setPadding(0,0,0,dp(4))})
                     c.addView(label(entry.after,17f).apply{setLineSpacing(dp(3).toFloat(),1f);setPadding(0,dp(2),0,dp(8))})
                     val actions=LinearLayout(this@VoiceHistoryActivity).apply{orientation=LinearLayout.HORIZONTAL}
                     actions.addView(pill("Copy"){copy(entry.after)})
@@ -128,7 +126,7 @@ class VoiceHistoryActivity: Activity() {
         val c=card(parent)
         val top=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
         top.addView(badge(if(record.cancelled)"Cancelled" else "Interrupted",if(record.cancelled)0xFFF2B35E.toInt() else 0xFFE87C7C.toInt()))
-        top.addView(label("  ${dayLabel(record.timestamp)} ${clock(record.timestamp)} · ${duration(record.durationSec)}",12f,muted).apply{setPadding(dp(6),0,0,0)})
+        top.addView(label("  ${clock(record.timestamp)} · ${duration(record.durationSec)}",12f,muted).apply{setPadding(dp(6),0,0,0)})
         c.addView(top)
         val state=label(if(record.cancelled)"You cancelled this. The audio is saved on this device for ${PendingAudio.CANCELLED_KEEP_DAYS} days." else "Your audio is saved on this device.",14f,muted).apply{setPadding(0,dp(8),0,dp(8))}
         c.addView(state)
