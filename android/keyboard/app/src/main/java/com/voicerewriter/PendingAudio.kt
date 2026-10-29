@@ -146,6 +146,7 @@ object PendingAudio {
             val rec = get(c, id) ?: return
             metaFile(c, id).writeText(rec.copy(cancelled = true).toJson().toString())
         }
+        prune(c)
     }
 
     /** Cancelled takes are kept this long; a retry that settles them follows the normal retention. */
@@ -209,8 +210,10 @@ object PendingAudio {
      * Recordings with no result that nothing is currently transcribing — the ones to offer the
      * user a retry for. Derived, never stored.
      */
-    fun unfinished(c: Context): List<PendingRecording> =
-        all(c).filter { !it.settled && it.id !in inFlight }
+    fun unfinished(c: Context): List<PendingRecording> {
+        prune(c) // expire old cancelled takes whenever history is opened
+        return all(c).filter { !it.settled && it.id !in inFlight }
+    }
 
     /**
      * Blob first, then the metadata row, so an interrupted prune never leaves a row pointing

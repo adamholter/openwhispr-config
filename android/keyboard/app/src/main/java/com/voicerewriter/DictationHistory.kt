@@ -77,6 +77,8 @@ object DictationHistory {
 
     fun setKeepHistory(c: Context, on: Boolean) {
         prefs(c).edit().putBoolean("keep", on).apply()
+        // Turning history off promises nothing stays on disk, so saved audio goes too.
+        if (!on) PendingAudio.purgeAll(c)
     }
 
     /** Record a finished dictation. No-op (except counters stay untouched) when history is off. */

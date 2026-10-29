@@ -107,7 +107,7 @@ class VoiceHistoryActivity: Activity() {
                     c.addView(label(entry.after,17f).apply{setLineSpacing(dp(3).toFloat(),1f);setPadding(0,dp(2),0,dp(8))})
                     val actions=LinearLayout(this@VoiceHistoryActivity).apply{orientation=LinearLayout.HORIZONTAL}
                     actions.addView(pill("Copy"){copy(entry.after)})
-                    actions.addView(pill("Delete"){confirmDelete("Delete this dictation?"){DictationHistory.delete(applicationContext,entry.id);render()}})
+                    actions.addView(pill("Delete"){confirmDelete("Delete this dictation?"){DictationHistory.delete(applicationContext,entry.id);PendingAudio.discard(applicationContext,entry.id);render()}})
                     c.addView(actions)
                 }
                 if(rows.size>visibleCount)list.addView(pill("Load older",false){visibleCount+=100;render()})
