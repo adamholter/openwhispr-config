@@ -297,7 +297,7 @@ object ImeDictationPipeline {
         val raw=transcribe(context,pending,settings,samples,bias,status)
         var cleaned=withContext(Dispatchers.Default){VocabCorrector.correct(raw,vocab)}
         val hasInstructions=DictationInstructions.requested(raw)
-        if(cleanup)cleaned=SpokenNumbers.convert(cleaned)
+        if(cleanup)cleaned=SpokenNumbers.convert(ModelNames.fix(cleaned))
         if(cleanup&&settings.deterministicCleanup&&!hasInstructions)cleaned=withContext(Dispatchers.Default){TextProcessor.process(cleaned,TextProcessingConfig(selfCorrectionEnabled=false,fillerRemovalEnabled=false,listFormattingEnabled=false),isCodeContext=true)}
         if(hasInstructions&&!settings.isConfigured)throw IllegalStateException("Instructions need the cleanup provider. Recording saved.")
         if(hasInstructions||(cleanup&&settings.llmPolishEnabled&&settings.isConfigured&&cleaned.trim().split(Regex("\\s+")).size>=4)){
