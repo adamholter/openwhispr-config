@@ -22,7 +22,22 @@ Model output also goes through a stripper that removes `<think>…</think>`, `<|
 
 ## Spoken numbers
 
-[`spoken-numbers.js`](spoken-numbers.js) runs on the raw transcript before it is wrapped for the cleanup model. It only converts unambiguous numbers ("twenty x" → "20x", "five point five" → "5.5", "twenty first" → "21st", "T three" → "T3"). It leaves "one of them", "one day", "three thirty" and years for the model. It does not touch the model's output.
+[`spoken-numbers.js`](spoken-numbers.js) runs on the raw transcript before it is wrapped for the cleanup model. It converts only numbers that parse cleanly ("twenty x" → "20x", "five point five" → "5.5", "six hundred billion" → "600 billion", "twenty first" → "21st", "twenty twenty six" → "2026", "at three thirty" → "3:30", "T three" → "T3", "nine B model" → "9B"). A run that doesn't parse stays as words, never half converted. It leaves "one of them" and "one day" alone.
+
+## Spoken emoji
+
+[`spoken-emoji.js`](spoken-emoji.js) and [`emoji-table.tsv`](emoji-table.tsv) (CLDR names and keywords from emojibase-data 16.0.3) run after the number pass:
+
+- "&lt;description&gt; emoji" becomes the emoji ("blushing smiling face emoji" → 😊, "three fire emojis" → 🔥🔥🔥).
+- Talk about emoji ("the voice emoji doesn't work", "add emojis") stays as words.
+- A request it can't resolve is marked `⟦emoji: …⟧`, and the prompt tells the model to pick the emoji.
+- On the output it removes description words the model left next to an emoji, and turns any marker that's left back into words.
+- A take that is only emoji after conversion skips the model; it used to describe the emoji instead.
+- In selection editing, "just put the emoji" is answered from the table without the model.
+
+## Answer guard
+
+[`answer-guard.js`](answer-guard.js) rejects cleanup output that answers or refuses the dictation, or adds a lot of new words. When that happens, the pre-processed transcript is pasted instead.
 
 ## Repeat cache
 

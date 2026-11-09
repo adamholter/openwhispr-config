@@ -59,6 +59,32 @@ function owModelNames(text) {
   t = t.replace(/(?<!\b(?:friend|named|called|aunt|aunt|cousin|sister|girlfriend|wife|daughter|miss)\s)\bkimmy\b/gi, 'Kimi');
   t = t.replace(/\bgrock\b/gi, 'Grok').replace(/\b(?:groc|grog)(?=\s+(?:\d|bot\b|four|three|five))/gi, 'Grok');
   t = t.replace(/\bdeep\s+seek(?!ing)\b/gi, 'DeepSeek');
+  // Astra: "GPT-6 asteroid/astro", and next to a tier sibling.
+  fix(new RegExp(`(${GPT}[,]?\\s*)(?:asteroid|astro)\\b()`, 'gi'), 'Astra');
+  fix(new RegExp(`(\\b${TIER}${SEP})astro\\b()`, 'gi'), 'Astra');
+  fix(new RegExp(`\\bastro\\b(?=${SEP}${TIER}\\b)`, 'gi'), 'Astra');
+  // Other names the recognizer splits or misspells. Only spellings that are not ordinary English,
+  // or that sit next to a word that pins them to the product.
+  t = t.replace(/\bopen\s?whisper\b/gi, 'OpenWhispr').replace(/\bopen\s+router\b/gi, 'OpenRouter').replace(/\bOpen Code\b/g, 'OpenCode');
+  t = t.replace(/\b(?:t|g|tea|tee)[\s-]?(?:3|three)\s+code\b/gi, 'T3 Code');
+  t = t.replace(/\bagents?\s+(?:dot\s+)?md\b/gi, 'AGENTS.md').replace(/\bclaude\s+(?:dot\s+)?md\b/gi, 'CLAUDE.md');
+  t = t.replace(/\bx[\s-]high\b/gi, 'xhigh');
+  t = t.replace(/\b(?:mac's|macs|max's)\s+(?=(?:reasoning|effort|thinking)\b)/gi, 'max ');
+  t = t.replace(/\b(?:kodak's|codec's)\b/gi, "Codex's");
+  t = t.replace(/\b(claude\s+)sonic\b/gi, '$1Sonnet').replace(/\bsonic(?=\s+(?:\d|four|five|three|six)\b)/gi, 'Sonnet');
+  t = t.replace(/\b(?:mimotron|nemetron|nematron|nimotron|neimatron|nemitron)\b/gi, 'Nemotron');
+  t = t.replace(/\bkua\b/gi, 'Cua');
+  t = t.replace(/\bgpg(?=[\s-]*(?:\d|four|five|six|seven|oss)\b)/gi, 'GPT');
+  t = t.replace(/\bpryors\b/gi, 'Priors');
+  t = t.replace(/(?<!\b(?:your|my|our|their|his|her|its|strong|weak|update|updating|bayesian|informative|uninformative)\s)\bpriors\b(?=\s+(?:chart|charts|site|app|page|leaderboard|data|users|ranking|rankings|index|homepage|dashboard|mcp|api|repo|team|redesign|analytics|launch|account|domain|post|posts)\b)/gi, 'Priors');
+  t = t.replace(/\b((?:on|for|to|into|at|from)\s+)priors\b(?!\s+(?:about|that|on|of|for|and)\b)/gi, (m, a, off, str) => /\b(?:your|my|our|their|update|bayesian)\s*$/i.test(str.slice(Math.max(0, off - 20), off)) ? m : a + 'Priors');
+  t = t.replace(/\bcompany\s+cam\b/gi, 'CompanyCam');
+  t = t.replace(/\b(hearing|clutter|garble|maze|butter|prinz|counting|ghost)\s?bench\b/gi, (m, a) => a[0].toUpperCase() + a.slice(1).toLowerCase() + 'Bench');
+  t = t.replace(/\bafterquery\b|\bAfter Query\b/g, 'AfterQuery');
+  t = t.replace(/\banti[-\s]?gravity\b/gi, (m, off, str) => /\b(?:google|gemini|agy|ide|argon|editor|ag|cursor|codex|claude|agent)\b/i.test(str.slice(Math.max(0, off - 80), off + m.length + 80)) ? 'Antigravity' : m);
+  t = t.replace(/\bargonne\b/gi, (m, off, str) => /\bgemini\b/i.test(str.slice(Math.max(0, off - 60), off + 60)) ? 'Argon' : m);
+  t = t.replace(/\b(?:carpathy|karpathi|carpathi)\b/gi, 'Karpathy');
+  t = t.replace(/\bcash(?=\s+(?:rate|hit|hits|miss|misses|read|reads|write|writes|pricing|discount|tokens)\b)/gi, 'cache').replace(/\bprompt\s+cashing\b/gi, 'prompt caching').replace(/\bcashed(?=\s+(?:tokens|input|prompt)\b)/gi, 'cached');
   return t;
 }
 if (typeof module !== 'undefined') module.exports = { owModelNames };
