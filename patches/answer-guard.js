@@ -7,7 +7,7 @@ function owAccepts(input, output) {
   const inW = words(input.replace(/⟦emoji:[^⟧]*⟧/g, ' ')), outW = words(output);
   if (!inW.length) return true;
   if (!outW.length) return false;
-  const meta = /\b(?:the|this) transcript\b|\bnothing to clean\b|\bno (?:spoken|dictated) (?:words|content|text)\b|\bI(?:'m| am) (?:not able|unable) to\b|\bI can(?:'t|not) help\b|\bcould you (?:please )?(?:clarify|provide|share)\b/i;
+  const meta = /\b(?:the|this) transcript\b|\bnothing to clean\b|\bno (?:spoken|dictated) (?:words|content|text)\b|\bI(?:'m| am) (?:not able|unable) to\b|\bI can(?:'t|not) help\b|\bcould you (?:please )?(?:clarify|provide|share)\b|(?:^|\n)\s*cleaned(?: transcript| text)?:|\bwait,? let me\b|\blet me re-?read\b|\bper the rules\b|\breturning the transcript\b|\bI keep it as spoken\b|\bthe transcript (?:says|reads|contains)\b|\bhere(?: is|'s) the cleaned\b/i;
   if (meta.test(output) && !meta.test(input)) return false;
   const relaxed = /\b(?:scratch that|actually|i mean|no wait|wait no|sorry|correction|delete that|never mind|nevermind|rather)\b/i.test(input);
   if (outW.length > inW.length * 2 + 12) return false;
