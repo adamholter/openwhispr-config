@@ -18,25 +18,25 @@ class VoiceHistoryActivity: Activity() {
     private var loadJob:Job?=null
     private val retryJobs=mutableMapOf<String,Job>()
     private var visibleCount=100
-    private val background=android.graphics.Color.rgb(45,45,48)
+    private val background=android.graphics.Color.BLACK
     private val muted=android.graphics.Color.rgb(183,183,190)
     private lateinit var content:LinearLayout
     private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
     private fun label(text:String,size:Float=16f,color:Int=android.graphics.Color.WHITE):TextView=TextView(this).apply{this.text=text;textSize=size;setTextColor(color);setPadding(0,dp(6),0,dp(6));setTextIsSelectable(true)}
     private fun button(text:String,action:()->Unit)=Button(this).apply{this.text=text;isAllCaps=false;textSize=14f;setTextColor(android.graphics.Color.WHITE);setBackgroundColor(android.graphics.Color.TRANSPARENT);minWidth=0;minimumWidth=0;setPadding(dp(12),0,dp(12),0);setOnClickListener{action()};layoutParams=LinearLayout.LayoutParams(-2,dp(48))}
-    private fun separator(parent:LinearLayout){parent.addView(android.view.View(this).apply{setBackgroundColor(0xFF48484E.toInt())},LinearLayout.LayoutParams(-1,dp(1)).apply{topMargin=dp(14);bottomMargin=dp(14)})}
+    private fun separator(parent:LinearLayout){parent.addView(android.view.View(this).apply{setBackgroundColor(0xFF262626.toInt())},LinearLayout.LayoutParams(-1,dp(1)).apply{topMargin=dp(14);bottomMargin=dp(14)})}
     override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window,false);window.statusBarColor=background;window.navigationBarColor=background;}
     override fun onResume(){super.onResume();render()}
     override fun onDestroy(){scope.cancel();super.onDestroy()}
     private fun copy(text:String){(getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Dictation",text));Toast.makeText(this,"Copied",Toast.LENGTH_SHORT).show()}
-    private val accent=android.graphics.Color.rgb(138,180,248)
-    private val cardColor=android.graphics.Color.rgb(58,58,62)
+    private val accent=android.graphics.Color.rgb(232,232,232)
+    private val cardColor=android.graphics.Color.rgb(26,26,26)
     private fun round(color:Int,r:Int=14)=android.graphics.drawable.GradientDrawable().apply{setColor(color);cornerRadius=dp(r).toFloat()}
     private fun pill(text:String,primary:Boolean=false,action:()->Unit)=Button(this).apply{
         this.text=text;isAllCaps=false;textSize=13f;minWidth=0;minimumWidth=0;minHeight=0;minimumHeight=0
         setPadding(dp(16),0,dp(16),0)
         if(primary){setTextColor(android.graphics.Color.rgb(20,24,36));background=round(accent,20)}
-        else{setTextColor(android.graphics.Color.WHITE);background=round(0xFF4A4A50.toInt(),20)}
+        else{setTextColor(android.graphics.Color.WHITE);background=round(0xFF262626.toInt(),20)}
         stateListAnimator=null
         setOnClickListener{action()}
         layoutParams=LinearLayout.LayoutParams(-2,dp(38)).apply{rightMargin=dp(8)}

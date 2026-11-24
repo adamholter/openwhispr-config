@@ -50,16 +50,22 @@ final class DynamicGridKeyboard extends Keyboard {
 
     public static DynamicGridKeyboard ofKeyCount(SharedPreferences prefs, Keyboard templateKeyboard,
             int maxKeyCount, boolean isRecents, int width) {
-        return new DynamicGridKeyboard(prefs, templateKeyboard, maxKeyCount, isRecents, width, false);
+        return new DynamicGridKeyboard(prefs, templateKeyboard, maxKeyCount, isRecents, width, false, 0);
+    }
+
+    /** A grid with a fixed number of columns, for keys wider than an emoji (text emoticons). */
+    public static DynamicGridKeyboard ofKeyCountAndColumns(SharedPreferences prefs, Keyboard templateKeyboard,
+            int maxKeyCount, int width, int columns) {
+        return new DynamicGridKeyboard(prefs, templateKeyboard, maxKeyCount, false, width, false, columns);
     }
 
     public static DynamicGridKeyboard ofRowCount(SharedPreferences prefs, Keyboard templateKeyboard,
             int maxRowCount, boolean isRecents, int width) {
-        return new DynamicGridKeyboard(prefs, templateKeyboard, maxRowCount, isRecents, width, true);
+        return new DynamicGridKeyboard(prefs, templateKeyboard, maxRowCount, isRecents, width, true, 0);
     }
 
     private DynamicGridKeyboard(SharedPreferences prefs, Keyboard templateKeyboard,
-            int maxCount, boolean isRecents, int width, boolean fixedRowCount) {
+            int maxCount, boolean isRecents, int width, boolean fixedRowCount, int columns) {
         super(templateKeyboard);
         // todo: would be better to keep them final and not require width, but how to properly set width of the template keyboard?
         //  an alternative would be to always create the templateKeyboard with full width
@@ -72,10 +78,15 @@ final class DynamicGridKeyboard extends Keyboard {
         final int horizontalGap = Math.abs(key1.getX() - key0.getX()) - key0.getWidth();
         final float widthScale = determineWidthScale(key0.getWidth() + horizontalGap);
         mHorizontalGap = (int) (horizontalGap * widthScale);
-        mHorizontalStep = (int) ((key0.getWidth() + horizontalGap) * widthScale);
         mVerticalStep = (int) ((key0.getHeight() + mVerticalGap) / Math.sqrt(Settings.getValues().mKeyboardHeightScale));
-        mColumnsNum = mBaseWidth / mHorizontalStep;
-        if (spacerWidth > 0)
+        if (columns > 0) {
+            mHorizontalStep = mBaseWidth / columns;
+            mColumnsNum = columns;
+        } else {
+            mHorizontalStep = (int) ((key0.getWidth() + horizontalGap) * widthScale);
+            mColumnsNum = mBaseWidth / mHorizontalStep;
+        }
+        if (spacerWidth > 0 && columns <= 0)
             setSpacerColumns(spacerWidth);
         mMaxKeyCount = fixedRowCount? maxCount * getOccupiedColumnCount() : maxCount;
         mFixedRowCount = fixedRowCount;

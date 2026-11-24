@@ -202,16 +202,18 @@ private constructor(val themeId: Int, @JvmField val mStyleId: Int) {
                     ContextCompat.getColor(context, R.color.key_hint_letter_color_lxx_dark),
                     keyboardBackground = backgroundImage
                 )
+                // OpenWhispr: pure black with neutral (white/gray) accents, no wallpaper color.
                 THEME_BLACK -> DefaultColors(
                     themeStyle,
                     hasBorders,
-                    ContextCompat.getColor(context, R.color.gesture_trail_color_lxx_dark),
+                    "#E8E8E8".toColorInt(),
                     ContextCompat.getColor(context, R.color.background_amoled_black),
                     ContextCompat.getColor(context, R.color.background_amoled_dark),
-                    ContextCompat.getColor(context, R.color.background_amoled_dark),
+                    "#262626".toColorInt(),
                     ContextCompat.getColor(context, R.color.background_amoled_dark),
                     ContextCompat.getColor(context, R.color.key_text_color_lxx_dark),
                     ContextCompat.getColor(context, R.color.key_hint_letter_color_lxx_dark),
+                    gesture = "#B3FFFFFF".toColorInt(),
                     keyboardBackground = backgroundImage
                 )
                 THEME_BLUE_GRAY -> DefaultColors(

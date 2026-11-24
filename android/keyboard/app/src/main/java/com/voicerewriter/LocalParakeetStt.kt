@@ -9,13 +9,17 @@ import com.k2fsa.sherpa.onnx.OfflineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OfflineTransducerModelConfig
 import com.whispercpp.whisper.WhisperCpuConfig
 import java.io.File
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -52,7 +56,8 @@ object LocalParakeetStt {
 
     private val loadLock = Mutex()
     // sherpa streams are short-lived, but the cached recognizer owns native decoder state. Keep
-    // retries from racing a live dictation through that state on the same process.
+    // retries from racing a live dictation through that state on the same process. Held per
+    // decode chunk so takes interleave instead of queueing behind a long recording.
     private val decodeLock = Mutex()
     @Volatile private var recognizer: OfflineRecognizer? = null
     private val resourceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -184,7 +189,7 @@ object LocalParakeetStt {
         val seconds = samples.size / AudioRecorder.SAMPLE_RATE.toFloat()
         val t0 = System.nanoTime()
         var tLoaded = t0
-        val text = decodeLock.withLock {
+        val text = run {
             var countedAsActive = false
             try {
                 val rec = loadLock.withLock {
@@ -192,7 +197,10 @@ object LocalParakeetStt {
                     countedAsActive = true
                     cancelIdleEvictionLocked()
                     val cached = recognizer
-                    if (cached != null && recognizerKey == key) {
+                    if (cached != null && (recognizerKey == key || activeDecodes > 1)) {
+                        // Another take is between chunks on this recognizer; never release it
+                        // underneath that decode. A hotwords toggle applies to the next take.
+                        if (recognizerKey != key) Log.i("LocalParakeetStt", "reusing busy recognizer despite config change")
                         cached
                     } else {
                         if (cached != null) releaseRecognizerLocked("decoder configuration changed")
@@ -202,24 +210,65 @@ object LocalParakeetStt {
                 }
                 tLoaded = System.nanoTime()
                 withContext(Dispatchers.Default) {
-                    val stream = rec.createStream()
-                    try {
-                        stream.acceptWaveform(samples, 16_000)
-                        rec.decode(stream)
-                        rec.getResult(stream).text
-                    } finally {
-                        stream.release()
+                    val decodeContext = currentCoroutineContext()
+                    val ranges = ParakeetAudioChunker.plan(samples)
+                    val maxChunkSamples = ranges.maxOfOrNull { it.size } ?: 0
+                    Log.i(
+                        "LocalParakeetStt",
+                        "audio=" + "%.1f".format(seconds) + "s decodeChunks=" + ranges.size +
+                            " maxChunkSamples=" + maxChunkSamples,
+                    )
+                    decodeContext.ensureActive()
+                    val chunkTexts = ArrayList<String>(ranges.size)
+                    for (range in ranges) {
+                        decodeContext.ensureActive()
+                        val chunkSamples =
+                            if (range.start == 0 && range.endExclusive == samples.size) {
+                                samples
+                            } else {
+                                samples.copyOfRange(range.start, range.endExclusive)
+                            }
+                        // Lock per chunk, not per take: a live dictation waits for at most one
+                        // ~20 s chunk of a long history retry instead of the whole recording.
+                        chunkTexts += decodeLock.withLock {
+                            val stream = rec.createStream()
+                            try {
+                                // Parakeet drops the last word when audio stops mid-speech. One second of
+                                // trailing silence on the final chunk lets it finish (desktop Nov 10: missed
+                                // last words 58 -> 38 of 361 clips, WER 6.0% -> 5.7%).
+                                val input = if (range.endExclusive == samples.size)
+                                    chunkSamples.copyOf(chunkSamples.size + AudioRecorder.SAMPLE_RATE) else chunkSamples
+                                stream.acceptWaveform(input, AudioRecorder.SAMPLE_RATE)
+                                decodeContext.ensureActive()
+                                rec.decode(stream)
+                                rec.getResult(stream).text
+                            } finally {
+                                try {
+                                    stream.release()
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (error: Exception) {
+                                    Log.w("LocalParakeetStt", "stream release failed", error)
+                                }
+                            }
+                        }
                     }
+                    chunkTexts.asSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .joinToString(" ")
                 }
             } finally {
                 if (countedAsActive) {
-                    loadLock.withLock {
-                        activeDecodes -= 1
-                        if (activeDecodes == 0) {
-                            if (releaseRequested) {
-                                releaseRecognizerLocked("deferred explicit release")
-                            } else {
-                                scheduleIdleEvictionLocked()
+                    withContext(NonCancellable) {
+                        loadLock.withLock {
+                            activeDecodes -= 1
+                            if (activeDecodes == 0) {
+                                if (releaseRequested) {
+                                    releaseRecognizerLocked("deferred explicit release")
+                                } else {
+                                    scheduleIdleEvictionLocked()
+                                }
                             }
                         }
                     }

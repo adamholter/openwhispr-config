@@ -336,10 +336,11 @@ class BridgeConfigReceiver : BroadcastReceiver() {
         const val IMPORT_MODEL = "com.voicerewriter.IMPORT_WHISPER_BASE"
         private const val WHISPER_BASE_SHA256 = "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
         private val PARAKEET_IMPORTS = mapOf(
-            "encoder.int8.onnx" to (652_184_296L to "a32b12d17bbbc309d0686fbbcc2987b5e9b8333a7da83fa6b089f0a2acd651ab"),
-            "decoder.int8.onnx" to (7_257_753L to "b6bb64963457237b900e496ee9994b59294526439fbcc1fecf705b31a15c6b4e"),
-            "joiner.int8.onnx" to (1_739_080L to "7946164367946e7f9f29a122407c3252b680dbae9a51343eb2488d057c3c43d2"),
-            "tokens.txt" to (9_384L to "ec182b70dd42113aff6c5372c75cac58c952443eb22322f57bbd7f53977d497d"),
+            // Parakeet Unified EN 0.6B int8 (csukuangfj2/sherpa-onnx-nemo-parakeet-unified-en-0.6b-int8-non-streaming).
+            "encoder.int8.onnx" to (654_040_552L to "6716910b7a0833997fec7a410494c995d70124001a0e9b66d6370d6aced577e0"),
+            "decoder.int8.onnx" to (7_257_753L to "a5e223392c90e75f8144cdb5eb95af7625db389e39edef2bd1a9c872b3298fe6"),
+            "joiner.int8.onnx" to (1_735_860L to "869f43f7d24595c55581ad3bf249a935fb8a71389fbdaa7504b9f46f93140f8a"),
+            "tokens.txt" to (8_952L to "dc0b4584ab2e4ddbf888425c076c61b736e7356a015250db7d307e6f1a8188ff"),
         )
     }
 }

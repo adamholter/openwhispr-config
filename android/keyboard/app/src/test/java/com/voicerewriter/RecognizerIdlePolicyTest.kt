@@ -12,7 +12,7 @@ class RecognizerIdlePolicyTest {
                 hasRecognizer = true,
                 activeDecodes = 0,
                 releaseRequested = false,
-                idleForMs = 60_000,
+                idleForMs = 600_000,
             ),
         )
         assertFalse(
@@ -20,7 +20,7 @@ class RecognizerIdlePolicyTest {
                 hasRecognizer = true,
                 activeDecodes = 1,
                 releaseRequested = false,
-                idleForMs = 60_000,
+                idleForMs = 600_000,
             ),
         )
         assertFalse(
@@ -28,7 +28,7 @@ class RecognizerIdlePolicyTest {
                 hasRecognizer = true,
                 activeDecodes = 0,
                 releaseRequested = false,
-                idleForMs = 59_999,
+                idleForMs = 599_999,
             ),
         )
     }
@@ -40,7 +40,7 @@ class RecognizerIdlePolicyTest {
                 hasRecognizer = true,
                 activeDecodes = 0,
                 releaseRequested = true,
-                idleForMs = 60_000,
+                idleForMs = 600_000,
             ),
         )
     }

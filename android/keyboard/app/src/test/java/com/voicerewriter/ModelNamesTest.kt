@@ -19,7 +19,7 @@ class ModelNamesTest {
         assertEquals("she put her whole soul into it", ModelNames.fix("she put her whole soul into it"))
         assertEquals("GPT-6.1 Terra. Depending", ModelNames.fix("GPT-6.1 tera. Depending"))
         assertEquals("the new codecs for streaming video", ModelNames.fix("the new codecs for streaming video"))
-        assertEquals("using Codex and T3 code", ModelNames.fix("using codecs and T3 code"))
+        assertEquals("using Codex and T3 Code", ModelNames.fix("using codecs and T3 code"))
         assertEquals("Claude models and my Claude limit", ModelNames.fix("clawed models and my clawed limit"))
         assertEquals("the cat clawed the couch", ModelNames.fix("the cat clawed the couch"))
         assertEquals("Claude Haiku five point", ModelNames.fix("Clog Haiku five point"))

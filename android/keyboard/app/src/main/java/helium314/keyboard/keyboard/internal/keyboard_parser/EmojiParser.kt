@@ -44,10 +44,16 @@ class EmojiParser(private val params: KeyboardParams, private val context: Conte
         var currentX = params.mLeftPadding.toFloat()
         val currentY = params.mTopPadding.toFloat() // no need to ever change, assignment to rows into rows is done in DynamicGridKeyboard
 
-        val (keyWidth, keyHeight) = getEmojiKeyDimensions(params, context)
+        val (emojiKeyWidth, keyHeight) = getEmojiKeyDimensions(params, context)
+        // Text emoticons are several characters long: give them a 3-column grid with
+        // smaller text that shrinks to fit, instead of squeezing them into emoji-sized keys.
+        val isEmoticons = params.mId.element == KeyboardElement.EMOJI_EMOTICONS
+        val keyWidth = if (isEmoticons) params.mBaseWidth / 3f - params.mHorizontalGap - 2f
+            else emojiKeyWidth
 
         emojis.forEach { emoji ->
-            val keyParams = parseEmojiKeyNew(emoji) ?: return@forEach
+            if (emoji.isBlank()) return@forEach
+            val keyParams = (if (isEmoticons) parseEmoticonKey(emoji) else parseEmojiKeyNew(emoji)) ?: return@forEach
             keyParams.xPos = currentX
             keyParams.yPos = currentY
             keyParams.mAbsoluteWidth = keyWidth
@@ -57,6 +63,15 @@ class EmojiParser(private val params: KeyboardParams, private val context: Conte
         }
         return arrayListOf(row)
     }
+
+    private fun parseEmoticonKey(emoticon: String): KeyParams = KeyParams(
+        emoticon,
+        emoticon.getCode(),
+        null,
+        null,
+        Key.LABEL_FLAGS_FONT_NORMAL or Key.LABEL_FLAGS_FOLLOW_KEY_LABEL_RATIO or Key.LABEL_FLAGS_AUTO_X_SCALE,
+        params
+    )
 
     private fun parseEmojiKeyNew(emoji: String): KeyParams? {
         if (SupportedEmojis.isUnsupported(emoji)) return null

@@ -172,16 +172,18 @@ fun createPreferencesSettings(context: Context) = listOf(
     },
     Setting(context, Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, R.string.clipboard_history_retention_time) { setting ->
         val ctx = LocalContext.current
-        SliderPreference(
-            name = setting.title,
-            key = setting.key,
-            default = Defaults.PREF_CLIPBOARD_HISTORY_RETENTION_TIME,
-            description = {
-                if (it > 120) stringResource(R.string.settings_no_limit)
-                else stringResource(R.string.abbreviation_unit_minutes, it.toString())
-            },
-            range = 1f..121f,
-        ) { ClipboardDao.getInstance(ctx)?.clearOldClips(true) }
+        val items = listOf(
+            "1 hour" to 60,
+            "1 day" to 1440,
+            "3 days" to 4320,
+            "1 week" to 10080,
+            "30 days" to 43200,
+            "90 days" to 129600,
+            stringResource(R.string.settings_no_limit) to Defaults.CLIPBOARD_RETENTION_FOREVER,
+        )
+        ListPreference(setting, items, Defaults.PREF_CLIPBOARD_HISTORY_RETENTION_TIME) {
+            ClipboardDao.getInstance(ctx)?.clearOldClips(true)
+        }
     },
     Setting(context, Settings.PREF_CLIPBOARD_HISTORY_PINNED_FIRST, R.string.clipboard_history_pinned_first) {
         SwitchPreference(it, Defaults.PREF_CLIPBOARD_HISTORY_PINNED_FIRST)

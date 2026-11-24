@@ -188,6 +188,9 @@ object KeyCode {
     // Valid in popups and for toolbar key long press only
     const val KEY_REPEAT =                -11000
 
+    // OpenWhispr: dictation history panel inside the keyboard
+    const val OW_HISTORY =                -20100
+
     // Intents
     const val SEND_INTENT_ONE =            -20000
     const val SEND_INTENT_TWO =            -20001

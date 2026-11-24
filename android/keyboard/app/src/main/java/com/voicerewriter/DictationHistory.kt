@@ -26,6 +26,7 @@ data class DictationEntry(
     val onDevice: Boolean,   // speech recognized on-device
     val before: String,      // raw transcript
     val after: String,       // text inserted
+    val cleanup: String = "", // raw | short | clean | rejected | failed (empty for older entries)
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("ts", timestamp)
@@ -33,6 +34,7 @@ data class DictationEntry(
         .put("dur", durationSec).put("words", words)
         .put("accepted", accepted).put("onDevice", onDevice)
         .put("before", before).put("after", after)
+        .put("cleanup", cleanup)
 
     companion object {
         fun fromJson(o: JSONObject) = DictationEntry(
@@ -46,6 +48,7 @@ data class DictationEntry(
             onDevice = o.optBoolean("onDevice", true),
             before = o.optString("before"),
             after = o.optString("after"),
+            cleanup = o.optString("cleanup"),
         )
     }
 }

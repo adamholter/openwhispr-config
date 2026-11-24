@@ -95,6 +95,7 @@ fun getCodeForToolbarKey(key: ToolbarKey) = Settings.getInstance().getCustomTool
     SPLIT -> KeyCode.SPLIT_LAYOUT
     FLOATING -> KeyCode.TOGGLE_FLOATING_WINDOW
     BACKGROUND_GATHERING -> KeyCode.BACKGROUND_GATHERING
+    HISTORY -> KeyCode.OW_HISTORY
 }
 
 fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getCustomToolbarLongpressCode(key) ?: when (key) {
@@ -121,7 +122,7 @@ fun getCodeForToolbarKeyLongClick(key: ToolbarKey) = Settings.getInstance().getC
 enum class ToolbarKey {
     VOICE, CLIPBOARD, NUMPAD, DPAD, UNDO, REDO, SETTINGS, SELECT_ALL, SELECT_WORD, COPY, CUT, PASTE, ONE_HANDED, FLOATING, SPLIT,
     INCOGNITO, AUTOCORRECT, CLEAR_CLIPBOARD, CLOSE_HISTORY, EMOJI, LEFT, RIGHT, UP, DOWN, WORD_LEFT, WORD_RIGHT,
-    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING
+    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, BACKGROUND_GATHERING, HISTORY
 }
 
 enum class ToolbarMode {
@@ -131,7 +132,8 @@ enum class ToolbarMode {
 val toolbarKeyStrings = entries.associateWithTo(EnumMap(ToolbarKey::class.java)) { it.toString().lowercase(Locale.US) }
 
 val defaultToolbarPref by lazy {
-    val default = listOf(SETTINGS, VOICE, EMOJI, CLIPBOARD, UNDO, REDO, SELECT_WORD, COPY, PASTE, LEFT, RIGHT)
+    // OpenWhispr: only the keys Adam uses; select/copy/paste/arrows live in the clipboard panel.
+    val default = OW_TOOLBAR
     val others = entries.filterNot { it in default || it == CLOSE_HISTORY }
     default.joinToString(Separators.ENTRY) { it.name + Separators.KV + true } + Separators.ENTRY +
             others.joinToString(Separators.ENTRY) { it.name + Separators.KV + false }
@@ -160,6 +162,8 @@ fun upgradeToolbarPrefs(prefs: SharedPreferences) {
 // OpenWhispr: one-time move of the emoji key into the expandable toolbar, right after the voice key.
 fun enableEmojiToolbarKey(prefs: SharedPreferences) {
     enableClipboardHistory(prefs)
+    useBlackTheme(prefs)
+    simplifyToolbar(prefs)
     val flag = "ow_emoji_toolbar_v1"
     if (prefs.getBoolean(flag, false)) return
     prefs.edit { putBoolean(flag, true) }
@@ -297,6 +301,20 @@ private var customToolbarKeyCodes: EnumMap<ToolbarKey, Pair<Int?, Int?>>? = null
 
 // OpenWhispr: the clipboard key opens history instead of pasting; keep clips for 2 hours (pinned clips never expire).
 private fun enableClipboardHistory(prefs: SharedPreferences) {
+    // v2: clips last 30 days by default (yesterday's copies must still be there).
+    // The old setting topped out at 2 hours, with 121 meaning "no limit".
+    val flag2 = "ow_clipboard_history_v2"
+    if (!prefs.getBoolean(flag2, false)) {
+        val old = prefs.getInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, Defaults.PREF_CLIPBOARD_HISTORY_RETENTION_TIME)
+        prefs.edit {
+            putBoolean(flag2, true)
+            putBoolean("ow_clipboard_history_v1", true)
+            putBoolean(Settings.PREF_ENABLE_CLIPBOARD_HISTORY, true)
+            putInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME,
+                if (old == 121) Defaults.CLIPBOARD_RETENTION_FOREVER else maxOf(old, Defaults.PREF_CLIPBOARD_HISTORY_RETENTION_TIME))
+        }
+        return
+    }
     val flag = "ow_clipboard_history_v1"
     if (prefs.getBoolean(flag, false)) return
     prefs.edit {
@@ -305,5 +323,29 @@ private fun enableClipboardHistory(prefs: SharedPreferences) {
         // only raise the old 10 minute default; a retention the user picked themselves stays
         if (prefs.getInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, 10) <= 10)
             putInt(Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, 120)
+    }
+}
+
+// OpenWhispr: one-time switch to the pure black theme, day and night (was blue-gray dark).
+private fun useBlackTheme(prefs: SharedPreferences) {
+    val flag = "ow_black_theme_v1"
+    if (prefs.getBoolean(flag, false)) return
+    prefs.edit {
+        putBoolean(flag, true)
+        putString(Settings.PREF_THEME_COLORS, helium314.keyboard.keyboard.KeyboardTheme.THEME_BLACK)
+        putString(Settings.PREF_THEME_COLORS_NIGHT, helium314.keyboard.keyboard.KeyboardTheme.THEME_BLACK)
+    }
+}
+
+private val OW_TOOLBAR = listOf(VOICE, HISTORY, CLIPBOARD, EMOJI, UNDO, REDO, SETTINGS)
+
+// OpenWhispr: one-time reset to the short toolbar (voice, history, clipboard, emoji, undo, redo, settings).
+private fun simplifyToolbar(prefs: SharedPreferences) {
+    val flag = "ow_toolbar_v2"
+    if (prefs.getBoolean(flag, false)) return
+    prefs.edit {
+        putBoolean(flag, true)
+        putBoolean("ow_emoji_toolbar_v1", true)
+        remove(Settings.PREF_TOOLBAR_KEYS) // falls back to defaultToolbarPref
     }
 }

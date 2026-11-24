@@ -49,6 +49,8 @@ object DictationInstructions {
         require(value.length() == 1 && value.get("text") is String) { "Invalid instruction response" }
         return value.getString("text")
     }
+    // The cleanup model narrating its own work ("Cleaned: …", "Wait, let me reread this").
+    private val META = Regex("(?i)\\bthe transcript (says|reads|contains)\\b|\\bnothing to clean\\b|(^|\\n)\\s*cleaned( transcript| text)?:|\\bwait,? let me\\b|\\blet me re-?read\\b|\\bper the rules\\b|\\breturning the transcript\\b|\\bhere(?: is|'s) the cleaned\\b")
     fun accepts(input: String, output: String): Boolean = requested(input) ||
-        (output.isNotBlank() && RewriteEngine.preservesContent(input, output, RewriteEngine.hasSelfCorrection(input)) && RewriteEngine.addsLittleNewContent(input, output))
+        (output.isNotBlank() && !(META.containsMatchIn(output) && !META.containsMatchIn(input)) && RewriteEngine.preservesContent(input, output, RewriteEngine.hasSelfCorrection(input)) && RewriteEngine.addsLittleNewContent(input, output))
 }

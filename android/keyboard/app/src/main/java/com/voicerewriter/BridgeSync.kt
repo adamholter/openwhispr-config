@@ -25,6 +25,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Optional private bridge sync. Configuration is provisioned after install into the app-private
@@ -84,7 +85,13 @@ object BridgeSync {
             timeZone = TimeZone.getTimeZone("UTC")
         }.format(Date(timestamp))
 
-    @Synchronized
+    /** Guards the queue file only. Never held across network I/O, so saving a take never waits on upload. */
+    private val queueLock = Any()
+    /** One delivery pass at a time; the network attempt holds this, not [queueLock]. */
+    private val flushLock = Any()
+    private val flushRunning = AtomicBoolean(false)
+    private val flushAgain = AtomicBoolean(false)
+
     fun enqueue(context: Context, entry: DictationEntry) {
         val payload = JSONObject()
             .put("id", entry.id)
@@ -97,29 +104,39 @@ object BridgeSync {
             .put("engine", if (entry.onDevice) "on-device" else "cloud")
             .put("cleanup_mode", "openwispr-mobile")
             .put("focused_app_name", entry.appLabel)
+            .put("cleanup_status", entry.cleanup)
         enqueuePayload(context, payload)
     }
 
     /** Shared lock prevents imports being lost while a worker replaces the queue. */
-    @Synchronized
     internal fun enqueuePayload(context: Context, payload: JSONObject) {
-        File(context.applicationContext.filesDir, QUEUE).appendText(payload.toString() + "\n")
+        synchronized(queueLock) {
+            File(context.applicationContext.filesDir, QUEUE).appendText(payload.toString() + "\n")
+        }
         flushSoon(context)
         schedule(context)
     }
 
     /** Stable per-model device label, e.g. "android-sm-s942u". */
-    val DEVICE_ID: String = "android-" + android.os.Build.MODEL.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "-")
+    val DEVICE_ID: String by lazy { "android-" + android.os.Build.MODEL.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "-") }
 
     /**
      * Sends the queue right away on a background thread. WorkManager stays as the retry path,
      * but Android's flexible job constraints can hold it for a long time, so delivery should
-     * not depend on it.
+     * not depend on it. Single-flight: every keyboard open calls this, and an unreachable
+     * endpoint must not pile up threads that each wait out a connect timeout.
      */
     fun flushSoon(context: Context) {
         val app = context.applicationContext
         if (!File(app.filesDir, QUEUE).let { it.exists() && it.length() > 0 }) return
-        Thread({ runCatching { flush(app) } }, "openwhispr-bridge-flush").start()
+        flushAgain.set(true)
+        if (!flushRunning.compareAndSet(false, true)) return
+        Thread({
+            do {
+                while (flushAgain.getAndSet(false)) runCatching { flush(app) }
+                flushRunning.set(false)
+            } while (flushAgain.get() && flushRunning.compareAndSet(false, true))
+        }, "openwhispr-bridge-flush").start()
     }
 
     fun schedule(context: Context, replace: Boolean = false) {
@@ -133,8 +150,9 @@ object BridgeSync {
             .enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, request)
     }
 
-    @Synchronized
-    internal fun flush(context: Context): Boolean {
+    internal fun flush(context: Context): Boolean = synchronized(flushLock) { flushLocked(context) }
+
+    private fun flushLocked(context: Context): Boolean {
         val dir = context.applicationContext.filesDir
         val configFile = File(dir, CONFIG)
         if (!configFile.exists()) return true // local-only until explicitly provisioned
@@ -144,11 +162,13 @@ object BridgeSync {
         if (!endpoint.startsWith("https://") || token.length < 32) return false
         rememberPinnedAddress(endpoint, config)
         val queue = File(dir, QUEUE)
-        if (!queue.exists()) return true
-        val pending = queue.readLines().filter { it.isNotBlank() }
-        val retained = mutableListOf<String>()
+        val pending = synchronized(queueLock) {
+            if (!queue.exists()) return true
+            queue.readLines().filter { it.isNotBlank() }
+        }
         val statusFile = File(dir, "bridge_last_status.txt")
-        for ((index, line) in pending.withIndex()) {
+        var delivered = 0
+        for (line in pending) {
             val request = Request.Builder().url(endpoint)
                 .header("Authorization", "Bearer $token")
                 .post(line.toRequestBody(json)).build()
@@ -159,17 +179,19 @@ object BridgeSync {
             }.onFailure { error ->
                 statusFile.writeText("error:${error.javaClass.simpleName}:${error.message.orEmpty().take(160)}")
             }.getOrNull()
-            val accepted = outcome == 200
-            if (!accepted) {
-                retained += pending.drop(index)
-                break
-            }
+            if (outcome != 200) break
+            delivered++
         }
-        val temp = File(dir, "$QUEUE.tmp")
-        temp.writeText(retained.joinToString("\n", postfix = if (retained.isEmpty()) "" else "\n"))
-        // Android rename replaces the old queue atomically; keep it intact until then.
-        if (!temp.renameTo(queue)) return false
-        return retained.isEmpty()
+        if (delivered == 0) return pending.isEmpty()
+        return synchronized(queueLock) {
+            // Only this pass removes rows and appends only add to the end, so the snapshot is
+            // still the queue's prefix; rows appended during upload survive.
+            val retained = queue.readLines().filter { it.isNotBlank() }.drop(delivered)
+            val temp = File(dir, "$QUEUE.tmp")
+            temp.writeText(retained.joinToString("\n", postfix = if (retained.isEmpty()) "" else "\n"))
+            // Android rename replaces the old queue atomically; keep it intact until then.
+            temp.renameTo(queue) && retained.isEmpty()
+        }
     }
 
     /** Pull enabled dashboard rules without ever replacing the last good offline cache on error. */

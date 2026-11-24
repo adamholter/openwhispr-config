@@ -157,6 +157,8 @@ public class LatinIME extends InputMethodService implements
     private FrameLayout mOpenWhisprContainer;
     private View mHeliBoardInputView;
     private VoicePanelView mVoicePanel;
+    private com.voicerewriter.KeyboardHistoryPanel mHistoryPanel;
+    private boolean mShowingHistory;
     private boolean mShowingVoicePanel = true;
     private static java.lang.ref.WeakReference<LatinIME> sFixtureInstance = new java.lang.ref.WeakReference<>(null);
     private long mVoiceGeneration = 0;
@@ -333,6 +335,12 @@ public class LatinIME extends InputMethodService implements
             // mode switches; restartSuggestionsOnWordTouchedByCursor now only clears stale
             // composition and leaves the editor word committed.
             removeMessages(MSG_RESUME_SUGGESTIONS);
+        }
+
+        /** Resume suggestions for the word ending at the cursor shortly after a backspace. */
+        public void postResumeAfterBackspace() {
+            removeMessages(MSG_RESUME_SUGGESTIONS);
+            sendMessageDelayed(obtainMessage(MSG_RESUME_SUGGESTIONS), 120);
         }
 
         public void postResetCaches(final boolean tryResumeSuggestions, final int remainingTries) {
@@ -801,6 +809,10 @@ public class LatinIME extends InputMethodService implements
         mVoicePanel = new VoicePanelView(this, this, new VoicePanelActions());
         mOpenWhisprContainer.addView(mVoicePanel, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, voicePanelHeightPx(), android.view.Gravity.TOP));
+        mHistoryPanel = new com.voicerewriter.KeyboardHistoryPanel(this, new HistoryPanelActions());
+        mHistoryPanel.setVisibility(View.GONE);
+        mOpenWhisprContainer.addView(mHistoryPanel, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, voicePanelHeightPx(), android.view.Gravity.TOP));
         // The voice panel takes exactly the key area's place, under HeliBoard's own toolbar,
         // so switching modes never changes the keyboard height or theme.
         mOpenWhisprContainer.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> syncVoicePanelBounds());
@@ -833,6 +845,80 @@ public class LatinIME extends InputMethodService implements
         params.topMargin = top;
         params.height = height;
         mVoicePanel.post(() -> mVoicePanel.setLayoutParams(params));
+        syncHistoryPanelBounds(top, height);
+    }
+
+    private void syncHistoryPanelBounds(final int top, final int height) {
+        if (mHistoryPanel == null) return;
+        final FrameLayout.LayoutParams hp = (FrameLayout.LayoutParams) mHistoryPanel.getLayoutParams();
+        if (hp.topMargin == top && hp.height == height && hp.gravity == android.view.Gravity.TOP) return;
+        hp.gravity = android.view.Gravity.TOP;
+        hp.topMargin = top;
+        hp.height = height;
+        mHistoryPanel.post(() -> mHistoryPanel.setLayoutParams(hp));
+    }
+
+    /** Dictation history over the key area. Closing returns to the mode it was opened from. */
+    private void showHistoryPanel() {
+        if (mHistoryPanel == null) return;
+        if (historyBlocked()) {
+            if (mVoicePanel != null && mShowingVoicePanel) mVoicePanel.setStatus("History is hidden here", false);
+            return;
+        }
+        if (mShowingVoicePanel && mVoicePanel != null && !mVoicePanel.canSwitchToTyping()) return; // recording
+        if (mKeyboardSwitcher.isShowingEmojiPalettes() || mKeyboardSwitcher.isShowingClipboardHistory())
+            mKeyboardSwitcher.resetKeyboardStateToAlphabet(getCurrentAutoCapsState(), getCurrentRecapitalizeState());
+        mShowingHistory = true;
+        syncVoicePanelBounds();
+        final View keys = mKeyboardSwitcher.getWrapperView();
+        if (keys != null) keys.setVisibility(View.INVISIBLE);
+        if (mVoicePanel != null) mVoicePanel.setVisibility(View.GONE);
+        mHistoryPanel.applyTheme(mSettings.getCurrent().mColors);
+        mHistoryPanel.refresh();
+        mHistoryPanel.setVisibility(View.VISIBLE);
+    }
+
+    /** Never show dictations on the lock screen, in password fields, or in incognito fields. */
+    private boolean historyBlocked() {
+        final android.app.KeyguardManager km = getSystemService(android.app.KeyguardManager.class);
+        if (km != null && (km.isKeyguardLocked() || km.isDeviceLocked())) return true;
+        final EditorInfo info = getCurrentInputEditorInfo();
+        if (info != null && (helium314.keyboard.latin.utils.InputTypeUtils.isPasswordInputType(info.inputType)
+                || helium314.keyboard.latin.utils.InputTypeUtils.isVisiblePasswordInputType(info.inputType)
+                || (info.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0)) return true;
+        return mVoiceSession != null && mVoiceSession.getPassword();
+    }
+
+    private void hideHistoryPanel() {
+        if (!mShowingHistory) return;
+        mShowingHistory = false;
+        if (mHistoryPanel != null) mHistoryPanel.setVisibility(View.GONE);
+        if (mShowingVoicePanel) showVoicePanel(); else showTypingPanel();
+    }
+
+    /** Insert with a separating space when it would otherwise run into the previous word. */
+    private void insertFromHistory(@NonNull final String text) {
+        final InputConnection connection = getCurrentInputConnection();
+        if (connection == null) return;
+        String insert = text;
+        final CharSequence before = connection.getTextBeforeCursor(1, 0);
+        if (before != null && before.length() == 1 && !Character.isWhitespace(before.charAt(0))
+                && !insert.isEmpty() && Character.isLetterOrDigit(insert.charAt(0)))
+            insert = " " + insert;
+        new VoicePanelActions().insertText(insert);
+    }
+
+    private final class HistoryPanelActions implements com.voicerewriter.KeyboardHistoryPanel.Actions {
+        @Override public void insertFromHistory(@NonNull final String text) {
+            hideHistoryPanel();
+            LatinIME.this.insertFromHistory(text);
+        }
+        @Override public void closeHistory() { hideHistoryPanel(); }
+        @Override public void openHistoryApp() {
+            hideHistoryPanel();
+            startActivity(new Intent(LatinIME.this, VoiceHistoryActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        }
     }
 
     @Override
@@ -888,12 +974,28 @@ public class LatinIME extends InputMethodService implements
         mVoiceGeneration++;
         mVoiceSession = createVoiceSession(editorInfo);
         refreshSelectionTarget();
+        // Raw transcript lasts for the current field only. A stray tap on the small Clean/Raw chip
+        // used to switch cleanup (and number/emoji conversion) off until the keyboard process died.
+        if (!restarting) mCleanupEnabled = true;
         if (mVoicePanel != null) {
             mVoicePanel.startSession(mVoiceSession);
             mVoicePanel.setSelectionTarget(mSelectionTarget);
             updateUndoAvailability();
             mVoicePanel.setCleanupLabel(mCleanupEnabled ? "Clean up" : "Raw transcript");
-            showVoicePanel();
+            // Emoji search needs letters, and coming back from it should land on the emoji grid,
+            // not the voice panel drawn over it.
+            final boolean emojiSearchField =
+                    EmojiSearchActivity.Companion.decodePrivateImeOptions(editorInfo).height() > 0;
+            final boolean returningFromSearch = !emojiSearchField
+                    && android.os.SystemClock.uptimeMillis() < mEmojiSearchReturnUntil;
+            if (emojiSearchField) {
+                showTypingPanel();
+            } else if (returningFromSearch) {
+                showTypingPanel();
+                mHandler.postDelayed(this::showEmojiAfterSearch, 100);
+            } else {
+                showVoicePanel();
+            }
         }
         if (mVoiceSession != null) ImeDictationPipeline.INSTANCE.adopt(this, mVoiceSession);
         mHandler.onStartInputView(editorInfo, restarting);
@@ -1274,6 +1376,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     private void showVoicePanel() {
+        if (mShowingHistory) { mShowingHistory = false; if (mHistoryPanel != null) mHistoryPanel.setVisibility(View.GONE); }
         if (!mShowingVoicePanel) finishComposingBeforeVoiceTransition();
         mShowingVoicePanel = true;
         if (mKeyboardSwitcher.isShowingEmojiPalettes() || mKeyboardSwitcher.isShowingClipboardHistory())
@@ -1289,6 +1392,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     private void showTypingPanel() {
+        if (mShowingHistory) { mShowingHistory = false; if (mHistoryPanel != null) mHistoryPanel.setVisibility(View.GONE); }
         if (mShowingVoicePanel) finishComposingBeforeVoiceTransition();
         ImeDictationPipeline.INSTANCE.cancel(false);
         mShowingVoicePanel = false;
@@ -1432,10 +1536,7 @@ public class LatinIME extends InputMethodService implements
 
     private final class VoicePanelActions implements VoicePanelView.Actions {
         @Override public void showTyping() { showTypingPanel(); }
-        @Override public void openHistory() {
-            startActivity(new Intent(LatinIME.this, VoiceHistoryActivity.class)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        }
+        @Override public void openHistory() { showHistoryPanel(); }
         @Override public void deleteBackward() {
             final InputConnection connection = getCurrentInputConnection();
             if (connection == null) return;
@@ -1880,6 +1981,15 @@ public class LatinIME extends InputMethodService implements
     // This method is public for testability of LatinIME, but also in the future it should
     // completely replace #onCodeInput.
     public void onEvent(@NonNull final Event event) {
+        if (KeyCode.OW_HISTORY == event.getKeyCode()) {
+            if (mShowingHistory) hideHistoryPanel(); else showHistoryPanel();
+            return;
+        }
+        if (mShowingHistory) {
+            mShowingHistory = false;
+            if (mHistoryPanel != null) mHistoryPanel.setVisibility(View.GONE);
+            if (mShowingVoicePanel) showVoicePanel(); else showTypingPanel();
+        }
         if (KeyCode.VOICE_INPUT == event.getKeyCode()) {
             if (mShowingVoicePanel) showTypingPanel();
             else if (mSelectionTarget != null) beginSelectionEdit();
@@ -2246,7 +2356,8 @@ public class LatinIME extends InputMethodService implements
             if (intent.getBooleanExtra(EmojiSearchActivity.IME_CLOSED_KEY, false)) {
                 requestHideSelf(0);
             } else {
-                mHandler.postDelayed(mKeyboardSwitcher::setEmojiKeyboard, 100);
+                mEmojiSearchReturnUntil = android.os.SystemClock.uptimeMillis() + 1500;
+                mHandler.postDelayed(this::showEmojiAfterSearch, 100);
                 if (intent.hasExtra(EmojiSearchActivity.EMOJI_KEY)) {
                      onTextInput(intent.getStringExtra(EmojiSearchActivity.EMOJI_KEY));
                 }
@@ -2257,6 +2368,13 @@ public class LatinIME extends InputMethodService implements
         }
 
         return super.onStartCommand(intent, flags, startId);
+    }
+
+    private long mEmojiSearchReturnUntil = 0;
+
+    private void showEmojiAfterSearch() {
+        showTypingPanel();
+        mKeyboardSwitcher.setEmojiKeyboard();
     }
 
     public boolean isEmojiSearch() {
@@ -2358,6 +2476,7 @@ public class LatinIME extends InputMethodService implements
             case TRIM_MEMORY_RUNNING_LOW, TRIM_MEMORY_RUNNING_CRITICAL, TRIM_MEMORY_COMPLETE -> {
                 KeyboardLayoutSet.Companion.onSystemLocaleChanged(); // clears caches, nothing else
                 mKeyboardSwitcher.trimMemory();
+                com.voicerewriter.ImeDictationPipeline.INSTANCE.releaseRecognizerForMemory();
             }
             // deallocateMemory always called on hiding, and should not be called when showing
         }

@@ -32,8 +32,8 @@ class SelectionVoiceEditActivity : Activity() {
         selected=intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString().orEmpty()
         readOnly=intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY,true)
         if(intent.action!=Intent.ACTION_PROCESS_TEXT||selected.isBlank()||selected.length>12000){finish();return}
-        window.statusBarColor=0xff2d2d30.toInt();window.navigationBarColor=0xff2d2d30.toInt()
-        val column=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(24),dp(24),dp(24));setBackgroundColor(0xff2d2d30.toInt())}
+        window.statusBarColor=0xff000000.toInt();window.navigationBarColor=0xff000000.toInt()
+        val column=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(24),dp(24),dp(24),dp(24));setBackgroundColor(0xff000000.toInt())}
         fun label(text:String,size:Float)=TextView(this).apply{this.text=text;textSize=size;setTextColor(0xffeeeeee.toInt());setPadding(0,dp(8),0,dp(8));column.addView(this)}
         fun button(text:String,click:()->Unit)=Button(this).apply{this.text=text;isAllCaps=false;setOnClickListener{click()};column.addView(this,LinearLayout.LayoutParams(-1,dp(52)))}
         label("Edit with voice",24f)

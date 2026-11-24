@@ -235,10 +235,8 @@ class EmojiSearchActivity : ComponentActivity() {
                                     placeholder = { Text(stringResource(R.string.search_field_placeholder), fontFamily = fontFamily) },
                                     leadingIcon = { SearchIcon() },
                                     trailingIcon = {
-                                        IconButton(onClick = {
-                                            text = TextFieldValue()
-                                            search("")
-                                        }) { CloseIcon(cancel) }
+                                        // OpenWhispr: X leaves search (it used to only clear the text)
+                                        IconButton(onClick = { cancel() }) { CloseIcon(cancel) }
                                     },
                                     singleLine = true,
                                     enabled = true,

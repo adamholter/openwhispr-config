@@ -489,7 +489,8 @@ class DefaultColors (
         NAVIGATION_BAR -> navBar
         SUGGESTION_AUTO_CORRECT, EMOJI_CATEGORY, TOOL_BAR_KEY, TOOL_BAR_EXPAND_KEY, ONE_HANDED_MODE_BUTTON -> suggestionText
         MORE_SUGGESTIONS_HINT, SUGGESTED_WORD, SUGGESTION_TYPED_WORD, SUGGESTION_VALID_WORD -> adjustedSuggestionText
-        ACTION_KEY_ICON -> Color.WHITE
+        // OpenWhispr: dark icon on a light action color (the voice panel mic and Return keys)
+        ACTION_KEY_ICON -> if (themeStyle != STYLE_HOLO && isBrightColor(accent)) 0xFF1A1A1A.toInt() else Color.WHITE
     }
 
     override fun setColor(drawable: Drawable, color: ColorType) {

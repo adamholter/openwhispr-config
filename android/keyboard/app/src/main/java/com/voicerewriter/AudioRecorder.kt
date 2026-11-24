@@ -44,7 +44,7 @@ class AudioRecorder(private val context: Context) {
         private const val MIN_SPEECH_SAMPLES = (0.4 * SAMPLE_RATE).toInt()
 
         private const val PRE_PAD_SAMPLES = (0.2 * SAMPLE_RATE).toInt()
-        private const val POST_PAD_SAMPLES = (0.3 * SAMPLE_RATE).toInt()
+        private const val POST_PAD_SAMPLES = (0.5 * SAMPLE_RATE).toInt()
 
         // AudioRecord.stop() below normally wakes a blocking read immediately. Keep a bound for
         // broken vendor implementations, but callers must invoke stop off the IME thread.

@@ -23,7 +23,9 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:visibility="invisible"
-            android:text="¯\\_(ツ)_/¯"
+            android:gravity="center"
+            android:padding="24dp"
+            android:text="Copied text shows up here for 30 days.\nTap to paste · long-press to pin · swipe left to delete"
             tools:ignore="HardcodedText" />
 
         <helium314.keyboard.keyboard.clipboard.ClipboardHistoryRecyclerView

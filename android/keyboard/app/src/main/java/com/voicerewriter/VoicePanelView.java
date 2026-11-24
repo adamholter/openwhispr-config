@@ -336,6 +336,8 @@ public final class VoicePanelView extends LinearLayout {
     public void setCleanupLabel(String label) {
         cleanupRaw = label.equals("Raw transcript");
         changeLabel(cleanup, cleanupRaw ? "Raw" : "Clean");
+        // Raw is unusual; make it impossible to miss.
+        cleanup.setTextColor(cleanupRaw ? 0xFFFFB300 : status.getCurrentTextColor());
         cleanup.setContentDescription(cleanupRaw ? "Raw transcript. Tap to enable cleanup"
                 : "Cleanup enabled. Tap for raw transcript");
     }

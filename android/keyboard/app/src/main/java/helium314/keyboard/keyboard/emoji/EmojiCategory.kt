@@ -126,7 +126,9 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
 
     private fun computeCategoryPageCount(category: Category): Int {
         val keyboard = layoutSet.getKeyboard(category.element)
-        return (keyboard.sortedKeys.size - 1) / computeMaxKeyCountPerPage() + 1
+        val perPage = if (category == Category.EMOTICONS) MAX_LINE_COUNT_PER_PAGE * EMOTICON_COLUMNS
+            else computeMaxKeyCountPerPage()
+        return (keyboard.sortedKeys.size - 1) / perPage + 1
     }
 
     // Returns a keyboard from the recycler view's adapter position.
@@ -156,10 +158,13 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
             }
 
             val keyboard = layoutSet.getKeyboard(category.element)
-            val keyCountPerPage = computeMaxKeyCountPerPage()
+            val isEmoticons = category == Category.EMOTICONS
+            val keyCountPerPage = if (isEmoticons) MAX_LINE_COUNT_PER_PAGE * EMOTICON_COLUMNS else computeMaxKeyCountPerPage()
             val sortedKeysPages = sortKeysGrouped(keyboard.sortedKeys, keyCountPerPage)
             for (pageId in sortedKeysPages.indices) {
-                val tempKeyboard = DynamicGridKeyboard.ofKeyCount(prefs,
+                val tempKeyboard = if (isEmoticons) DynamicGridKeyboard.ofKeyCountAndColumns(prefs,
+                    layoutSet.getKeyboard(KeyboardElement.EMOJI_RECENTS), keyCountPerPage, currentWidth, EMOTICON_COLUMNS)
+                else DynamicGridKeyboard.ofKeyCount(prefs,
                     layoutSet.getKeyboard(KeyboardElement.EMOJI_RECENTS),
                     keyCountPerPage, category == Category.RECENTS, currentWidth)
                 for (emojiKey in sortedKeysPages[pageId]) {
@@ -201,6 +206,7 @@ internal class EmojiCategory(private val context: Context, private val layoutSet
         private val defaultCategory = Category.SMILEYS
 
         private const val MAX_LINE_COUNT_PER_PAGE = 3
+        private const val EMOTICON_COLUMNS = 3
 
         private fun getCategoryKeyboardMapKey(category: Category, id: Int) =
             ((category.ordinal.toLong()) shl Integer.SIZE) or id.toLong()

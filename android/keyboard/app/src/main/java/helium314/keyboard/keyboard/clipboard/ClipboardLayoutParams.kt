@@ -40,19 +40,21 @@ class ClipboardLayoutParams(ctx: Context) {
         listHeight = defaultKeyboardHeight - bottomRowKeyboardHeight - bottomPadding + offset.toInt()
     }
 
-    fun setListProperties(recycler: RecyclerView) {
+    fun setListProperties(recycler: RecyclerView, extraHeight: Int = 0) {
         (recycler.layoutParams as FrameLayout.LayoutParams).apply {
-            height = listHeight
+            if (height == listHeight + extraHeight) return
+            height = listHeight + extraHeight
             recycler.layoutParams = this
         }
     }
 
     fun setItemProperties(view: View) {
+        val minGap = (4 * view.resources.displayMetrics.density).toInt()
         (view.layoutParams as RecyclerView.LayoutParams).apply {
-            topMargin = keyHorizontalGap / 2
-            bottomMargin = keyVerticalGap / 2
-            marginStart = keyHorizontalGap / 2
-            marginEnd = keyHorizontalGap / 2
+            topMargin = maxOf(keyHorizontalGap / 2, minGap)
+            bottomMargin = maxOf(keyVerticalGap / 2, minGap)
+            marginStart = maxOf(keyHorizontalGap / 2, minGap)
+            marginEnd = maxOf(keyHorizontalGap / 2, minGap)
             view.layoutParams = this
         }
     }

@@ -25,7 +25,7 @@ object ParakeetModelManager {
 
     const val MODEL_ID = "parakeet"
     const val LABEL = "Parakeet (fastest + most accurate)"
-    const val SIZE_LABEL = "~631MB"
+    const val SIZE_LABEL = "~663MB"
 
     const val ENCODER = "encoder.int8.onnx"
 
@@ -41,14 +41,25 @@ object ParakeetModelManager {
     private const val MIN_ENCODER_BYTES = 400L * 1024 * 1024
 
     private fun hf(file: String) =
-        "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/resolve/main/$file"
+        "https://huggingface.co/csukuangfj2/sherpa-onnx-nemo-parakeet-unified-en-0.6b-int8-non-streaming/resolve/main/$file"
 
     /** The bundle's filenames, so cleanup can tell our leftovers from a retired model's. */
     fun bundleFiles(): List<String> = FILES
 
-    /** Directory holding the bundle: filesDir/models/parakeet/. */
+    /**
+     * Directory holding the bundle: filesDir/models/parakeet-unified/. Since 2.2.29 the model is
+     * Parakeet Unified EN 0.6B (same four-file nemo_transducer layout as v2; on Adam's audio it cut
+     * word errors from 7.3% to 6.2%, research/asr-bench). The retired v2 bundle in models/parakeet/
+     * is deleted once the unified bundle is ready.
+     */
+    private const val BUNDLE_DIR = "parakeet-unified"
     fun modelDir(context: Context): File =
-        File(File(context.filesDir, "models"), MODEL_ID).apply { mkdirs() }
+        File(File(context.filesDir, "models"), BUNDLE_DIR).apply { mkdirs() }
+
+    private fun dropRetiredBundle(context: Context) {
+        val old = File(File(context.filesDir, "models"), "parakeet")
+        if (old.isDirectory) runCatching { old.deleteRecursively() }
+    }
 
     fun file(context: Context, name: String): File = File(modelDir(context), name)
 
@@ -60,7 +71,9 @@ object ParakeetModelManager {
     fun isReady(context: Context): Boolean {
         val dir = modelDir(context)
         if (FILES.any { !File(dir, it).exists() }) return false
-        return File(dir, ENCODER).length() > MIN_ENCODER_BYTES
+        val ready = File(dir, ENCODER).length() > MIN_ENCODER_BYTES
+        if (ready) dropRetiredBundle(context)
+        return ready
     }
 
     /**

@@ -74,12 +74,20 @@ class ClipboardHistoryView @JvmOverloads constructor(
         fitsSystemWindows = true
     }
 
+    private var absorbedBottomInset = 0
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // OpenWhispr: same as EmojiPalettesView, use the doubled navigation-bar inset for the clip list
+        if (paddingBottom > 0) {
+            absorbedBottomInset = paddingBottom
+            setPadding(paddingLeft, paddingTop, paddingRight, 0)
+        }
+        if (this::clipboardRecyclerView.isInitialized) clipboardLayoutParams.setListProperties(clipboardRecyclerView, absorbedBottomInset)
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         val res = context.resources
         // The main keyboard expands to the entire this {@link KeyboardView}.
         val width = ResourceUtils.getKeyboardWidth(context, Settings.getValues()) + paddingLeft + paddingRight
-        val height = ResourceUtils.getSecondaryKeyboardHeight(res, Settings.getValues()) + paddingTop + paddingBottom
+        val height = ResourceUtils.getSecondaryKeyboardHeight(res, Settings.getValues()) + paddingTop + paddingBottom + absorbedBottomInset
         setMeasuredDimension(width, height)
     }
 
@@ -163,14 +171,15 @@ class ClipboardHistoryView @JvmOverloads constructor(
         placeholderView.apply {
             KeyboardTypeface.applyToTextView(this)
             setTextColor(params.mTextColor)
-            setTextSize(TypedValue.COMPLEX_UNIT_PX, params.mLabelSize.toFloat() * 2)
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, params.mLabelSize.toFloat())
+            setTextColor((params.mTextColor and 0x00FFFFFF) or 0xA6000000.toInt())
         }
         clipboardRecyclerView.apply {
             adapter = clipboardAdapter
             val keyboardWidth = ResourceUtils.getKeyboardWidth(context, settings.current)
             layoutParams.width = keyboardWidth
             // new ClipboardLayoutParams means ClipboardAdapter has wrong gaps, but that's ok (only relevant when resizing floating keyboard)
-            ClipboardLayoutParams(context).setListProperties(this)
+            ClipboardLayoutParams(context).setListProperties(this, absorbedBottomInset)
 
             // set side padding
             val keyboardAttr = context.obtainStyledAttributes(

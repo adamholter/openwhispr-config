@@ -2,7 +2,7 @@ package com.voicerewriter
 
 /** Resource policy for the native recognizer cache. */
 internal object RecognizerIdlePolicy {
-    const val DEFAULT_IDLE_TIMEOUT_MS = 60_000L
+    const val DEFAULT_IDLE_TIMEOUT_MS = 10 * 60_000L
 
     fun shouldEvict(
         hasRecognizer: Boolean,

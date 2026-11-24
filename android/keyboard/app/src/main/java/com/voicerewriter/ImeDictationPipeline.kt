@@ -37,6 +37,9 @@ object ImeDictationPipeline {
 
     /** Load local speech while the keyboard is visible, before the user finishes dictating. */
     @Synchronized
+    fun releaseRecognizerForMemory() {
+        scope.launch(Dispatchers.IO){runCatching{LocalParakeetStt.release()}}
+    }
     fun warm(context:Context) {
         if(warmJob?.isActive==true)return
         val app=context.applicationContext
@@ -96,6 +99,8 @@ object ImeDictationPipeline {
         activeHost=host;activeSession=session;activeSelection=selection;startedAt=System.currentTimeMillis()
         val app=host.voiceContext.applicationContext
         appContext=app;held=null
+        // Loads during the recording if the idle timer released it, and restarts that timer otherwise.
+        warm(app)
         val thisTake=Take(session.incognito);take=thisTake
         val next=AudioRecorder(app)
         recorder=next
@@ -138,6 +143,9 @@ object ImeDictationPipeline {
     }
     /** An explicit Cancel keeps the audio unless it was trivially short or the user wants no history. */
     private fun keepCancelled(context:Context,duration:Int)=duration>=2&&DictationHistory.keepHistory(context)
+    // Keep the microphone open briefly after the stop tap. Taps often land while the last word is
+    // still being said; desktop got the same 0.3 s tail on Nov 10 (61 of 200 clips ended mid-speech).
+    private val STOP_TAIL_MS=300L
     private fun stop(host:VoiceInputHost,session:VoiceEditorSession,recording:AudioRecorder,fromNotification:Boolean=false){
         recorder=null
         commitSession=session
@@ -160,7 +168,7 @@ object ImeDictationPipeline {
                 // Keep the assignment inside the non-cancellable region. If cancellation lands
                 // while the dispatcher resumes, the captured buffer still reaches the recovery
                 // branch below instead of being lost between the block and the assignment.
-                withContext(NonCancellable+Dispatchers.IO){samples=recording.stop();DictationForegroundService.stop(context)}
+                withContext(NonCancellable+Dispatchers.IO){if(!fromNotification)Thread.sleep(STOP_TAIL_MS);samples=recording.stop();DictationForegroundService.stop(context)}
                 ensureActive()
                 if(samples==null){host.setVoiceStatus("No speech captured");return@launch}
                 host.setVoiceStatus("Transcribing")
@@ -288,6 +296,8 @@ object ImeDictationPipeline {
         if(!current.isRecording||startJob?.isActive==true)return
         stop(host,session,current,fromNotification=true)
     }
+    /** How the last process() call treated cleanup: raw, short, clean, rejected or failed. Logged with history. */
+    @Volatile var lastCleanupStatus="clean"
     private suspend fun process(context:Context,pending:PendingRecording,target:String?,cleanup:Boolean=true,settingsOverride:Settings?=null,samplesOverride:ShortArray?=null,status:(String)->Unit):Pair<String,String>{
         val settings=settingsOverride ?: SettingsRepository(context).get()
         val samples=samplesOverride ?: withContext(Dispatchers.IO){PendingAudio.samples(context,pending.id)} ?: throw IllegalStateException("Saved audio is unavailable")
@@ -297,23 +307,33 @@ object ImeDictationPipeline {
         val raw=transcribe(context,pending,settings,samples,bias,status)
         var cleaned=withContext(Dispatchers.Default){VocabCorrector.correct(raw,vocab)}
         val hasInstructions=DictationInstructions.requested(raw)
-        if(cleanup)cleaned=SpokenNumbers.convert(ModelNames.fix(cleaned))
+        if(cleanup)cleaned=SpokenEmoji.convert(context,SpokenNumbers.convert(ModelNames.fix(cleaned)))
+        // An emoji request the table could not resolve is marked ⟦emoji: …⟧ for the model, even on short takes
+        // (only when polish is on: with it off nothing goes to the cloud and the marker is unmarked below).
+        val needsModel=cleanup&&cleaned.contains("⟦emoji:")
         if(cleanup&&settings.deterministicCleanup&&!hasInstructions)cleaned=withContext(Dispatchers.Default){TextProcessor.process(cleaned,TextProcessingConfig(selfCorrectionEnabled=false,fillerRemovalEnabled=false,listFormattingEnabled=false),isCodeContext=true)}
         if(hasInstructions&&!settings.isConfigured)throw IllegalStateException("Instructions need the cleanup provider. Recording saved.")
-        if(hasInstructions||(cleanup&&settings.llmPolishEnabled&&settings.isConfigured&&cleaned.trim().split(Regex("\\s+")).size>=4)){
+        lastCleanupStatus=if(!cleanup)"raw" else "short"
+        // A take that is only emoji (or digits) has nothing to clean; the model would describe it instead.
+        val hasWords=cleaned.any{it.isLetter()}
+        if(hasInstructions||(cleanup&&hasWords&&settings.isConfigured&&settings.llmPolishEnabled&&(needsModel||cleaned.trim().split(Regex("\\s+")).size>=4))){
+            lastCleanupStatus="rejected"
             status(if(hasInstructions)"Applying instructions" else "Cleaning up")
             try{
                 val out=StringBuilder();RewriteEngine.streamDictationCleanup(settings,cleaned,vocab.filter{!it.isSnippet}.map{it.canonical}).collect{out.append(it)}
                 val polished=if(hasInstructions)DictationInstructions.readResponse(out.toString()) else out.toString().replace(Regex("</?transcript>"),"").trim()
                 if(hasInstructions&&polished.isBlank()&&cleaned.trim().split(Regex("\\s+")).size>=12&&!Regex("(?i)\\b(delete|remove|clear|erase|wipe|get rid)").containsMatchIn(cleaned))
                     throw IllegalStateException("Instructions returned empty text. Recording saved for retry.")
-                if(DictationInstructions.accepts(cleaned,polished))cleaned=polished
+                if(DictationInstructions.accepts(cleaned.replace(Regex("⟦emoji:[^⟧]*⟧"),"").trim().ifEmpty{cleaned},polished)){cleaned=polished;lastCleanupStatus="clean"}
             }catch(e:CancellationException){throw e}catch(e:Exception){
                 // An instruction failure must remain retryable, never paste the command itself.
                 if(hasInstructions)throw IllegalStateException("Instructions failed. Recording saved for retry.",e)
                 status("Cleanup unavailable. Keeping transcript.")
+                lastCleanupStatus="failed"
             }
         }
+        // Drop description words the model left beside an emoji it inserted, and restore any unresolved marker.
+        if(cleanup)cleaned=ModelNames.fix(SpokenEmoji.unmark(SpokenEmoji.convert(context,cleaned)))
         if(target!=null){
             if(!settings.isConfigured)throw IllegalStateException("Translation provider is not configured")
             status("Translating")
@@ -342,8 +362,11 @@ object ImeDictationPipeline {
         val raw=transcribe(context,pending,settings,samples,bias,status)
         val instruction=withContext(Dispatchers.Default){VocabCorrector.correct(raw,vocab).trim()}
         if(instruction.isBlank())throw IllegalStateException("No edit instruction recognized")
+        // "Just put the emoji" on "Gravestone emoji": answer from the emoji table, no model, no leftover words.
+        SpokenEmoji.edit(context,instruction,target.text)?.let{return raw to it}
         if(!settings.isConfigured)throw IllegalStateException("Edit provider is not configured")
-        return raw to rewriteSelection(settings, instruction, target, status)
+        val edited=rewriteSelection(settings, instruction, target, status)
+        return raw to if(instruction.contains("emoji",ignoreCase=true))SpokenEmoji.unmark(SpokenEmoji.convert(context,edited)) else edited
     }
 
     /** PROCESS_TEXT owns its result contract; it never pastes into the current foreground app. */
@@ -436,12 +459,12 @@ object ImeDictationPipeline {
                 OnDeviceStt.transcribe(context,settings.copy(sttProvider="local",sttModel="base"),WavIo.toFloats(samples),bias)
             }
         }
-        android.util.Log.i("DictationSpeech","model=${if(usedFallback)"whisper-base-fallback" else settings.sttModelResolved} elapsed_ms=${android.os.SystemClock.elapsedRealtime()-sttStarted}")
+        android.util.Log.i("DictationSpeech","cleanup_prev=$lastCleanupStatus model=${if(usedFallback)"whisper-base-fallback" else settings.sttModelResolved} elapsed_ms=${android.os.SystemClock.elapsedRealtime()-sttStarted}")
         if(raw.isBlank())throw IllegalStateException("No speech recognized")
         return raw
     }
     private fun saveResult(context:Context,pending:PendingRecording,raw:String,cleaned:String,accepted:Boolean){
-        val entry=DictationEntry(id=pending.id,timestamp=pending.timestamp,appPackage=pending.appPackage,appLabel=pending.appLabel,durationSec=pending.durationSec,words=cleaned.trim().split(Regex("\\s+")).count{it.isNotBlank()},accepted=accepted,onDevice=pending.sttProvider=="local",before=raw,after=cleaned)
+        val entry=DictationEntry(id=pending.id,timestamp=pending.timestamp,appPackage=pending.appPackage,appLabel=pending.appLabel,durationSec=pending.durationSec,words=cleaned.trim().split(Regex("\\s+")).count{it.isNotBlank()},accepted=accepted,onDevice=pending.sttProvider=="local",before=raw,after=cleaned,cleanup=lastCleanupStatus)
         DictationHistory.recordDurably(context,entry);PendingAudio.settle(context,pending.id,cleaned)
     }
     /** History retry never commits into an editor or starts a fresh recording. */

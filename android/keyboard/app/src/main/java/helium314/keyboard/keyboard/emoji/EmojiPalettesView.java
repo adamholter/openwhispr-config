@@ -195,6 +195,7 @@ public final class EmojiPalettesView extends LinearLayout
     private boolean initialized = false;
     private final Colors mColors;
     private final EmojiLayoutParams mEmojiLayoutParams;
+    private int mAbsorbedBottomInset;
     private LinearLayout mTabStrip;
     private EmojiCategoryPageIndicatorView mEmojiCategoryPageIndicatorView;
     private KeyboardActionListener mKeyboardActionListener = KeyboardActionListener.EMPTY_LISTENER;
@@ -224,13 +225,21 @@ public final class EmojiPalettesView extends LinearLayout
 
     @Override
     protected void onMeasure(final int widthMeasureSpec, final int heightMeasureSpec) {
+        // OpenWhispr: the voice container already keeps the keyboard above the navigation bar, so
+        // the inset padding this view gets from fitsSystemWindows would leave an empty band under
+        // the bottom row. Keep the same total height, but give that space to the emoji list.
+        if (getPaddingBottom() > 0) {
+            mAbsorbedBottomInset = getPaddingBottom();
+            setPadding(getPaddingLeft(), getPaddingTop(), getPaddingRight(), 0);
+        }
+        if (mPager != null) new EmojiLayoutParams(getResources()).setEmojiListProperties(mPager, mAbsorbedBottomInset);
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         final Resources res = getContext().getResources();
         // The main keyboard expands to the entire this {@link KeyboardView}.
         final int width = ResourceUtils.getKeyboardWidth(getContext(), Settings.getValues())
                 + getPaddingLeft() + getPaddingRight();
         final int height = ResourceUtils.getSecondaryKeyboardHeight(res, Settings.getValues())
-                + getPaddingTop() + getPaddingBottom();
+                + getPaddingTop() + getPaddingBottom() + mAbsorbedBottomInset;
         mEmojiCategoryPageIndicatorView.mWidth = width;
         setMeasuredDimension(width, height);
     }
@@ -261,7 +270,7 @@ public final class EmojiPalettesView extends LinearLayout
 
         mPager = findViewById(R.id.emoji_pager);
         mPager.setAdapter(new PagerAdapter(mPager));
-        mEmojiLayoutParams.setEmojiListProperties(mPager);
+        mEmojiLayoutParams.setEmojiListProperties(mPager, mAbsorbedBottomInset);
         mEmojiCategoryPageIndicatorView = findViewById(R.id.emoji_category_page_id_view);
         mEmojiLayoutParams.setCategoryPageIdViewProperties(mEmojiCategoryPageIndicatorView);
         setCurrentCategory(mEmojiCategory.getCurrentCategory(), true);
@@ -344,7 +353,7 @@ public final class EmojiPalettesView extends LinearLayout
         setupBottomRowKeyboard(editorInfo, keyboardActionListener);
         final KeyDrawParams params = new KeyDrawParams();
         params.updateParams(mEmojiLayoutParams.getBottomRowKeyboardHeight(), keyVisualAttr);
-        new EmojiLayoutParams(getResources()).setEmojiListProperties(mPager); // necessary when floating
+        new EmojiLayoutParams(getResources()).setEmojiListProperties(mPager, mAbsorbedBottomInset); // necessary when floating
         setupSidePadding();
         initDictionaryFacilitator();
     }

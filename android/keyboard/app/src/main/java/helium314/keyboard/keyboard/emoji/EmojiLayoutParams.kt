@@ -42,9 +42,10 @@ internal class EmojiLayoutParams(res: Resources) {
         emojiKeyboardHeight = emojiListHeight - emojiCategoryPageIdViewHeight - emojiListBottomMargin
     }
 
-    fun setEmojiListProperties(vp: ViewPager2) {
+    fun setEmojiListProperties(vp: ViewPager2, extraHeight: Int = 0) {
         val lp = vp.layoutParams as LinearLayout.LayoutParams
-        lp.height = emojiKeyboardHeight
+        if (lp.height == emojiKeyboardHeight + extraHeight && lp.bottomMargin == emojiListBottomMargin) return
+        lp.height = emojiKeyboardHeight + extraHeight
         lp.bottomMargin = emojiListBottomMargin
         vp.layoutParams = lp
     }

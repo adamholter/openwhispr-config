@@ -194,11 +194,17 @@ class ClipboardDao private constructor(private val db: Database) {
             return
 
         lastClearOldClips = SystemClock.elapsedRealtime()
-        val retentionTime = Settings.getValues()?.mClipboardHistoryRetentionTime ?: 121L
-        if (retentionTime > 120) return
-        val minTime = System.currentTimeMillis() - retentionTime * 60 * 1000L
-        val toRemove = cache.filter { it.timeStamp < minTime && !it.isPinned }
-        delete(toRemove)
+        val retentionTime = Settings.getValues()?.mClipboardHistoryRetentionTime
+            ?: Defaults.PREF_CLIPBOARD_HISTORY_RETENTION_TIME.toLong()
+        val toRemove = LinkedHashSet<ClipboardHistoryEntry>()
+        if (retentionTime > 0) {
+            val minTime = System.currentTimeMillis() - retentionTime * 60 * 1000L
+            cache.filterTo(toRemove) { it.timeStamp < minTime && !it.isPinned }
+        }
+        // keep the history bounded even when clips never expire
+        cache.filter { !it.isPinned }.sortedByDescending { it.timeStamp }
+            .drop(Defaults.CLIPBOARD_HISTORY_MAX_UNPINNED).forEach { toRemove.add(it) }
+        if (toRemove.isNotEmpty()) delete(toRemove.toList())
     }
 
     fun clearNonPinned() {

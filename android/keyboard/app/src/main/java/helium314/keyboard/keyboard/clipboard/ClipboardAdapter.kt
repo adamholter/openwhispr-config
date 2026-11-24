@@ -52,6 +52,7 @@ class ClipboardAdapter(
         private val pinnedIconView: ImageView
         private val contentTextView: TextView
         private val contentImageView: ImageView
+        private val timeView: TextView
 
         init {
             view.apply {
@@ -61,7 +62,8 @@ class ClipboardAdapter(
                 setBackgroundResource(itemBackgroundId)
                 isHapticFeedbackEnabled = false
             }
-            Settings.getValues().mColors.setBackground(view, ColorType.KEY_BACKGROUND)
+            // OpenWhispr: always draw a rounded card, also when key borders are off.
+            view.background = clipCardBackground(view, Settings.getValues().mColors.get(ColorType.KEY_BACKGROUND))
             pinnedIconView = view.findViewById<ImageView>(R.id.clipboard_entry_pinned_icon).apply {
                 visibility = View.GONE
                 setImageResource(pinnedIconResId)
@@ -72,6 +74,10 @@ class ClipboardAdapter(
                 setTextSize(TypedValue.COMPLEX_UNIT_PX, itemTextSize)
             }
             contentImageView = view.findViewById(R.id.clipboard_entry_image_content)
+            timeView = view.findViewById<TextView>(R.id.clipboard_entry_time).apply {
+                typeface = itemTypeFace
+                setTextColor((itemTextColor and 0x00FFFFFF) or 0x8C000000.toInt())
+            }
             clipboardLayoutParams.setItemProperties(view)
             val colors = Settings.getValues().mColors
             colors.setColor(pinnedIconView, ColorType.CLIPBOARD_PIN)
@@ -86,6 +92,7 @@ class ClipboardAdapter(
                 contentTextView.text = historyEntry.text?.take(1000) // truncate displayed text for performance reasons
             }
             pinnedIconView.visibility = if (historyEntry.isPinned) View.VISIBLE else View.GONE
+            timeView.text = copiedLabel(historyEntry.timeStamp)
             contentImageView.visibility = if (historyEntry.filename != null) View.VISIBLE else View.GONE
             contentTextView.visibility = if (contentTextView.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
@@ -106,5 +113,36 @@ class ClipboardAdapter(
             clipboardHistoryManager?.toggleClipPinned(view.tag as Long)
             return true
         }
+    }
+}
+
+/** "Just now", "12 min ago", "3:14 PM", "Yesterday 3:14 PM", "Mon 3:14 PM", "Nov 12". */
+private fun copiedLabel(timeStamp: Long): String {
+    val now = System.currentTimeMillis()
+    val age = now - timeStamp
+    if (age < 0) return ""
+    if (age < 60_000L) return "Just now"
+    if (age < 60 * 60_000L) return "${age / 60_000L} min ago"
+    val then = java.util.Calendar.getInstance().apply { timeInMillis = timeStamp }
+    val today = java.util.Calendar.getInstance()
+    val time = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(timeStamp))
+    fun dayIndex(c: java.util.Calendar) = c.get(java.util.Calendar.YEAR) * 400 + c.get(java.util.Calendar.DAY_OF_YEAR)
+    val days = dayIndex(today) - dayIndex(then)
+    return when {
+        days <= 0 -> time
+        days == 1 -> "Yesterday $time"
+        days < 7 -> java.text.SimpleDateFormat("EEE", java.util.Locale.getDefault()).format(java.util.Date(timeStamp)) + " " + time
+        else -> java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(java.util.Date(timeStamp))
+    }
+}
+
+private fun clipCardBackground(view: View, keyColor: Int): android.graphics.drawable.Drawable {
+    val base = if (android.graphics.Color.alpha(keyColor) < 0x80) 0xFF1A1A1A.toInt() else keyColor
+    val radius = 12 * view.resources.displayMetrics.density
+    fun card(color: Int) = android.graphics.drawable.GradientDrawable().apply { cornerRadius = radius; setColor(color) }
+    val pressed = androidx.core.graphics.ColorUtils.blendARGB(base, android.graphics.Color.WHITE, 0.12f)
+    return android.graphics.drawable.StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_pressed), card(pressed))
+        addState(intArrayOf(), card(base))
     }
 }

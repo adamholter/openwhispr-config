@@ -132,6 +132,12 @@ public final class InputLogic {
 
     private long mCursorMoveExpectedUntil = 0L;
 
+    // The last swiped word and where it ended, so the next backspace can delete it whole.
+    private String mLastGestureWord = null;
+    private int mLastGestureEnd = -1;
+    // Cursor position after a plain backspace; the delayed resume only runs if it still matches.
+    private int mResumeAfterBackspaceAt = -1;
+
     // A delete must leave the editor at a plain cursor. The delayed recorrection path can
     // otherwise reopen the word before the cursor as a composing region, which makes Return
     // replace that word. This is also used by the voice panel, whose delete action talks to the
@@ -530,6 +536,8 @@ public final class InputLogic {
             // recompose an old word underneath the new input.
             mSuppressAutomaticWordRecomposition = false;
             mLatinIME.mHandler.cancelResumeSuggestions();
+            mLastGestureWord = null;
+            mResumeAfterBackspaceAt = -1;
         }
         if (processedEvent.getKeyCode() != KeyCode.DELETE
                 || inputTransaction.getTimestamp() > mLastKeyTime + Constants.LONG_PRESS_MILLISECONDS) {
@@ -1306,12 +1314,66 @@ public final class InputLogic {
                 : InputTransaction.SHIFT_UPDATE_NOW;
         inputTransaction.requireShiftUpdate(shiftUpdateKind);
 
-        // A deliberate editor selection is deleted as a unit. With a plain cursor,
-        // delete one code point and keep the preceding word out of composition.
+        final SettingsValues settingsValues = inputTransaction.getSettingsValues();
         final int selectionStart = mConnection.getExpectedSelectionStart();
         final int selectionEnd = mConnection.getExpectedSelectionEnd();
         final boolean hasSelection = selectionStart >= 0 && selectionEnd >= 0
                 && selectionStart != selectionEnd;
+
+        // A swiped word is deleted as a whole by the first backspace after the swipe.
+        if (!hasSelection && mWordComposer.isComposingWord() && mWordComposer.isBatchMode()
+                && !mWordComposer.isCursorFrontOrMiddleOfComposingWord()) {
+            final String rejected = mWordComposer.getTypedWord();
+            mLatinIME.mHandler.cancelResumeSuggestions();
+            mWordComposer.reset();
+            mWordComposer.setRejectedBatchModeSuggestion(rejected);
+            if (!TextUtils.isEmpty(rejected)) {
+                unlearnWord(rejected, settingsValues, DictionaryFacilitator.UnlearnEvent.REJECTION);
+            }
+            mConnection.commitText("", 1);
+            mLastGestureWord = null;
+            mEnteredText = null;
+            cancelDoubleSpacePeriodCountdown();
+            StatsUtils.onBackspaceWordDelete(rejected.length());
+            inputTransaction.setRequiresUpdateSuggestions();
+            return;
+        }
+        // Same, when the editor already took the swiped word out of composition.
+        if (!hasSelection && !mWordComposer.isComposingWord() && mLastGestureWord != null
+                && selectionStart == mLastGestureEnd && selectionStart >= mLastGestureWord.length()) {
+            final String word = mLastGestureWord;
+            mLastGestureWord = null;
+            final CharSequence before = mConnection.getTextBeforeCursor(word.length(), 0);
+            if (before != null && TextUtils.equals(before, word)) {
+                mConnection.finishComposingText();
+                mConnection.deleteTextBeforeCursor(word.length());
+                mEnteredText = null;
+                cancelDoubleSpacePeriodCountdown();
+                StatsUtils.onBackspaceWordDelete(word.length());
+                inputTransaction.setRequiresUpdateSuggestions();
+                return;
+            }
+        }
+        mLastGestureWord = null;
+
+        // A word that is being typed stays composing while it is backspaced, so its
+        // suggestions keep updating.
+        if (!hasSelection && mWordComposer.isComposingWord()
+                && !mWordComposer.isCursorFrontOrMiddleOfComposingWord()) {
+            mWordComposer.applyProcessedEvent(event);
+            if (mWordComposer.isComposingWord()) {
+                setComposingTextInternal(getTextWithUnderline(mWordComposer.getTypedWord()), 1);
+                inputTransaction.setRequiresUpdateSuggestions();
+            } else {
+                mConnection.commitText("", 1);
+                mSuggestionStripViewAccessor.setNeutralSuggestionStrip();
+            }
+            StatsUtils.onBackspacePressed(1);
+            return;
+        }
+
+        // A deliberate editor selection is deleted as a unit. With a plain cursor,
+        // delete one code point.
         mConnection.finishComposingText();
         resetEntireInputState(mConnection.getExpectedSelectionStart(),
                 mConnection.getExpectedSelectionEnd(), true);
@@ -1320,7 +1382,7 @@ public final class InputLogic {
         if (hasSelection) {
             mConnection.setSelection(selectionStart, selectionEnd);
             mConnection.commitText("", 1);
-            StatsUtils.onBackspacePressed(Math.abs(selectionEnd - selectionStart));
+            StatsUtils.onBackspaceSelectedText(Math.abs(selectionEnd - selectionStart));
             return;
         }
         final int codePoint = mConnection.getCodePointBeforeCursor();
@@ -1328,6 +1390,51 @@ public final class InputLogic {
         final int count = Character.charCount(codePoint);
         mConnection.deleteTextBeforeCursor(count);
         StatsUtils.onBackspacePressed(count);
+        // Backspacing into the end of a word brings its spelling suggestions back, once the
+        // editor has confirmed the delete (a held backspace only resumes after the last one).
+        mResumeAfterBackspaceAt = mConnection.getExpectedSelectionStart();
+        mLatinIME.mHandler.postResumeAfterBackspace();
+    }
+
+    /**
+     * Reopen the word that ends at the cursor so the strip shows suggestions for it. The word is
+     * marked as resumed, so Space, Return and punctuation commit it unchanged (no autocorrect).
+     */
+    private void resumeSuggestionsForWordBeforeCursor(final SettingsValues settingsValues,
+            final String currentKeyboardScript) {
+        if (!settingsValues.needsToLookupSuggestions()
+                || !settingsValues.mSpacingAndPunctuations.mCurrentLanguageHasSpaces
+                || mInputLogicHandler.isInBatchInput()
+                || mConnection.hasSelection()
+                || mWordComposer.isComposingWord()) {
+            return;
+        }
+        final int cursor = mConnection.getExpectedSelectionStart();
+        if (cursor <= 0) return;
+        if (mConnection.isCursorFollowedByWordCharacter(settingsValues.mSpacingAndPunctuations)) return;
+        if (!mConnection.isCursorTouchingWord(settingsValues.mSpacingAndPunctuations, false)) return;
+        final TextRange range = mConnection.getWordRangeAtCursor(
+                settingsValues.mSpacingAndPunctuations, currentKeyboardScript);
+        if (range == null || range.length() <= 0 || range.mHasUrlSpans) return;
+        if (range.getNumberOfCharsInWordAfterCursor() != 0) return;
+        final String word = range.mWord.toString();
+        final int firstCodePoint = word.codePointAt(0);
+        if (!settingsValues.isWordCodePoint(firstCodePoint)
+                || Constants.CODE_SINGLE_QUOTE == firstCodePoint
+                || Constants.CODE_DASH == firstCodePoint) {
+            return;
+        }
+        final int charsBefore = range.getNumberOfCharsInWordBeforeCursor();
+        if (charsBefore > cursor || charsBefore != word.length()) return;
+        final int[] codePoints = StringUtils.toCodePointArray(word);
+        mWordComposer.setComposingWord(codePoints, mLatinIME.getCoordinatesForCurrentKeyboard(codePoints));
+        mWordComposer.setCursorPositionWithinWord(word.codePointCount(0, charsBefore));
+        mConnection.setComposingRegion(cursor - charsBefore, cursor);
+        mInputLogicHandler.getSuggestedWords(() -> getSuggestedWords(SuggestedWords.INPUT_STYLE_TYPING,
+                SuggestedWords.NOT_A_SEQUENCE_NUMBER, suggestedWords -> {
+                    mIsAutoCorrectionIndicatorOn = false;
+                    mLatinIME.mHandler.setSuggestions(suggestedWords);
+                }));
     }
 
     String getWordAtCursor(final SettingsValues settingsValues, final String currentKeyboardScript) {
@@ -1679,6 +1786,13 @@ public final class InputLogic {
         // Existing editor words stay committed. A word that is being typed still belongs to
         // mWordComposer and keeps its normal composition; delayed refreshes must not replace it.
         mLatinIME.mHandler.cancelResumeSuggestions();
+        final int resumeAt = mResumeAfterBackspaceAt;
+        mResumeAfterBackspaceAt = -1;
+        if (resumeAt >= 0 && resumeAt == mConnection.getExpectedSelectionStart()
+                && !mConnection.hasSelection() && !mWordComposer.isComposingWord()) {
+            resumeSuggestionsForWordBeforeCursor(settingsValues, currentKeyboardScript);
+            return;
+        }
         if (mSuppressAutomaticWordRecomposition || mConnection.hasSelection()
                 || mWordComposer.isComposingWord()) {
             return;
@@ -2084,6 +2198,8 @@ public final class InputLogic {
         enterInlineEmojiSearchIfNeeded(batchInputText.codePointAt(0), settingsValues);
         setComposingTextInternal(batchInputText, 1);
         mConnection.endBatchEdit();
+        mLastGestureWord = batchInputText;
+        mLastGestureEnd = mConnection.getExpectedSelectionStart();
         // Space state must be updated before calling updateShiftState
         if (settingsValues.mAutospaceAfterGestureTyping)
             mSpaceState = SpaceState.PHANTOM;
