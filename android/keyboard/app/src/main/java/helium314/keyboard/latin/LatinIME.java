@@ -2346,6 +2346,9 @@ public class LatinIME extends InputMethodService implements
 
     public void launchEmojiSearch() {
         Log.d("emoji-search", "before activity launch");
+        // The app's field can restart before the search's DONE arrives; keep the return window
+        // open from launch so that restart lands on the emoji grid, not a flash of the voice panel.
+        mEmojiSearchReturnUntil = android.os.SystemClock.uptimeMillis() + 10 * 60 * 1000;
         startActivity(new Intent().setClass(this, EmojiSearchActivity.class)
                           .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_MULTIPLE_TASK));
     }
@@ -2354,6 +2357,7 @@ public class LatinIME extends InputMethodService implements
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && EmojiSearchActivity.EMOJI_SEARCH_DONE_ACTION.equals(intent.getAction()) && ! isEmojiSearch()) {
             if (intent.getBooleanExtra(EmojiSearchActivity.IME_CLOSED_KEY, false)) {
+                mEmojiSearchReturnUntil = 0;
                 requestHideSelf(0);
             } else {
                 mEmojiSearchReturnUntil = android.os.SystemClock.uptimeMillis() + 1500;
