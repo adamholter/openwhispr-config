@@ -21,26 +21,30 @@ let speechGapSeconds = 0.3
 // Clips shorter than this are decoded exactly as recorded; trimming pauses only pays off
 // (and only removes invented words) on long recordings.
 let vadMinSeconds = 30.0
+let trailSeconds = Double(env["OWASR_TRAIL"] ?? "") ?? 1.0
 let maxBodyBytes = 64 << 20 // ~17 min of float32 audio
 
+struct ASROut { let text: String; let duration: Double }
+
+// Parakeet Unified EN 0.6B since Nov 9, 2026 (was TDT v3): 8.0% -> 6.4% final-text WER on my
+// recordings at the same speed. The TDT v3 version is in this repo's git history.
 actor Transcriber {
-    private var manager: AsrManager?
+    private var manager: UnifiedAsrManager?
     private var vad: VadManager?
 
     func load() async throws {
-        let models = try await AsrModels.downloadAndLoad(version: .v3)
-        let manager = AsrManager(config: .default)
-        try await manager.loadModels(models)
+        let manager = UnifiedAsrManager()
+        try await manager.loadModels()
         self.manager = manager
         if useVad { vad = try await VadManager(config: VadConfig(defaultThreshold: vadThreshold)) }
     }
 
     var ready: Bool { manager != nil }
 
-    private func decode(_ samples: [Float]) async throws -> ASRResult {
+    private func decode(_ samples: [Float]) async throws -> ASROut {
         guard let manager else { throw ASRError.notInitialized }
-        var state = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
-        return try await manager.transcribe(samples, decoderState: &state)
+        let text = try await manager.transcribe(samples)
+        return ASROut(text: text, duration: Double(samples.count) / Double(sampleRate))
     }
 
     // Long pauses are where Parakeet invents words, so only the detected speech
@@ -63,8 +67,11 @@ actor Transcriber {
         return out
     }
 
-    func transcribe(_ samples: [Float]) async throws -> ASRResult {
-        let speech = try await speechOnly(samples)
+    func transcribe(_ samples: [Float]) async throws -> ASROut {
+        // Unified drops the final word when audio ends mid-speech; trailing silence
+        // lets it finish (bench: last-word misses 58 -> 38 of 361, WER 6.00 -> 5.72).
+        let tail = [Float](repeating: 0, count: Int(trailSeconds * Double(sampleRate)))
+        let speech = try await speechOnly(samples) + tail
         var result = try await decode(speech)
         if result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Very short or quiet clips sometimes decode to nothing; silence
