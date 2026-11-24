@@ -65,8 +65,12 @@ function owModelNames(text) {
   fix(new RegExp(`\\bastro\\b(?=${SEP}${TIER}\\b)`, 'gi'), 'Astra');
   // Other names the recognizer splits or misspells. Only spellings that are not ordinary English,
   // or that sit next to a word that pins them to the product.
+  t = t.replace(/\bopen[\s-]ai\b(?!\s+source\b)/gi, 'OpenAI').replace(/\bchat[\s-]g\.?p\.?t\b(?!\s+dot\b)/gi, 'ChatGPT');
+  t = t.replace(/\b(?:excal[aiue]?[\s-]?draw?|excel[\s-]draw|escalidraw)\b/gi, 'Excalidraw').replace(/\bsemi[\s-]analysis\b/gi, 'SemiAnalysis');
+  t = t.replace(/\b(?:vercell|versel)\b/gi, 'Vercel').replace(/\bquen\b/gi, 'Qwen').replace(/\bslopolytics\b/gi, 'Slopalytics');
+  t = t.replace(/\bgrok\s?bot\b/gi, 'Grok Bot').replace(/\bomar\s?key\b/gi, 'Omarchy').replace(/\bpost\s+hog\b/gi, 'PostHog').replace(/\bdeepseq\b/gi, 'DeepSeek');
   t = t.replace(/\bopen\s?whisper\b/gi, 'OpenWhispr').replace(/\bopen\s+router\b/gi, 'OpenRouter').replace(/\bOpen Code\b/g, 'OpenCode');
-  t = t.replace(/\b(?:t|g|tea|tee)[\s-]?(?:3|three)\s+code\b/gi, 'T3 Code');
+  t = t.replace(/\b(?:t|g|tea|tee)[\s-]?(?:3|three)\s*code\b/gi, 'T3 Code');
   t = t.replace(/\bagents?\s+(?:dot\s+)?md\b/gi, 'AGENTS.md').replace(/\bclaude\s+(?:dot\s+)?md\b/gi, 'CLAUDE.md');
   t = t.replace(/\bx[\s-]high\b/gi, 'xhigh');
   t = t.replace(/\b(?:mac's|macs|max's)\s+(?=(?:reasoning|effort|thinking)\b)/gi, 'max ');
@@ -79,12 +83,40 @@ function owModelNames(text) {
   t = t.replace(/(?<!\b(?:your|my|our|their|his|her|its|strong|weak|update|updating|bayesian|informative|uninformative)\s)\bpriors\b(?=\s+(?:chart|charts|site|app|page|leaderboard|data|users|ranking|rankings|index|homepage|dashboard|mcp|api|repo|team|redesign|analytics|launch|account|domain|post|posts)\b)/gi, 'Priors');
   t = t.replace(/\b((?:on|for|to|into|at|from)\s+)priors\b(?!\s+(?:about|that|on|of|for|and)\b)/gi, (m, a, off, str) => /\b(?:your|my|our|their|update|bayesian)\s*$/i.test(str.slice(Math.max(0, off - 20), off)) ? m : a + 'Priors');
   t = t.replace(/\bcompany\s+cam\b/gi, 'CompanyCam');
-  t = t.replace(/\b(hearing|clutter|garble|maze|butter|prinz|counting|ghost)\s?bench\b/gi, (m, a) => a[0].toUpperCase() + a.slice(1).toLowerCase() + 'Bench');
-  t = t.replace(/\bafterquery\b|\bAfter Query\b/g, 'AfterQuery');
-  t = t.replace(/\banti[-\s]?gravity\b/gi, (m, off, str) => /\b(?:google|gemini|agy|ide|argon|editor|ag|cursor|codex|claude|agent)\b/i.test(str.slice(Math.max(0, off - 80), off + m.length + 80)) ? 'Antigravity' : m);
+  t = t.replace(/\b(hearing|clutter|garble|maze|butter|prinz|counting|ghost|redstone|personality|idea|motion)\s?bench\b/gi, (m, a) => a[0].toUpperCase() + a.slice(1).toLowerCase() + 'Bench');
+  t = t.replace(/\banti[-\s]?gravity\b/gi, 'Antigravity');
   t = t.replace(/\bargonne\b/gi, (m, off, str) => /\bgemini\b/i.test(str.slice(Math.max(0, off - 60), off + 60)) ? 'Argon' : m);
   t = t.replace(/\b(?:carpathy|karpathi|carpathi)\b/gi, 'Karpathy');
   t = t.replace(/\bcash(?=\s+(?:rate|hit|hits|miss|misses|read|reads|write|writes|pricing|discount|tokens)\b)/gi, 'cache').replace(/\bprompt\s+cashing\b/gi, 'prompt caching').replace(/\bcashed(?=\s+(?:tokens|input|prompt)\b)/gi, 'cached');
-  return t;
+  return owMentions(owEmails(t));
 }
-if (typeof module !== 'undefined') module.exports = { owModelNames };
+// Spoken X mentions: "At bot, look into this" -> "@bot, look into this" (@bot is my own X bot; @grok is xAI's). Fires at a clause start, after a lead-in word ("also at bot", "tag at grok"),
+// or for bot before punctuation; "looking at Grok's chart" or "good at bot detection" stay as they are.
+// Also run on the cleanup output, which sometimes rewrites "at bot". Kotlin mirror: ModelNames.mentions.
+function owMentions(text) {
+  const LEAD = '(?:also|and|so|hey|okay|ok|yeah|but|then|just|or|now|do|say|tag|ping|mention|use|with|cc)';
+  return text
+    .replace(new RegExp(`(^|[.!?,;:(]\\s*|\\b${LEAD}\\s+)at\\s+(bot|grok)\\b`, 'gi'), (m, a, h) => a + '@' + h.toLowerCase())
+    .replace(/\bat\s+bot\b(?=\s*(?:[,.!?;:)]|$))/gi, '@bot');
+}
+// anywhere, including misheard surnames. Anyone else's needs "my email is ..." or the whole take being the
+// address, so "looking at gmail.com" stays as it is. Kotlin mirror: ModelNames.emails.
+function owEmails(text) {
+  const AT = '(?:\\s+at\\s+|\\s*@\\s*)';
+  const DOT = '\\s*(?:\\.|dot)\\s*';
+  const HOST = `(gmail|outlook|icloud|yahoo|hotmail|proton(?:mail)?)${DOT}(com|me)`;
+  const WORDS = '([a-z0-9._+-]+(?:\\s+[a-z0-9._+-]+){0,2})';
+  const STOP = /^(?:at|in|on|to|from|for|of|with|by|is|was|are|be|it|this|that|these|those|the|a|an|my|your|our|his|her|their|me|us|you|i|we|they|he|she|them|him|and|or|but|so|then|just|like|um|uh|probably|actually|maybe|now|still|also|here|there|look|looking|looked|check|checking|checked|go|going|went|sign|signing|signed|log|logging|logged|login|open|opening|opened|visit|visiting|see|seeing|up|out|over|back|try|trying|tried|email|mail|account|address|send|sent|use|using|used)$/i;
+  const toAddress = (m, lead, words, host, tld) => {
+    const parts = words.split(/\s+/);
+    let i = parts.length;
+    while (i > 0 && !STOP.test(parts[i - 1])) i--;
+    const local = parts.slice(i).map((w) => (/^dot$/i.test(w) ? '.' : w)).join('').toLowerCase();
+    if (!local || /^\.|\.$/.test(local)) return m;
+    return lead + parts.slice(0, i).map((w) => w + ' ').join('') + local + '@' + host.toLowerCase() + '.' + tld.toLowerCase();
+  };
+  return text
+    .replace(new RegExp(`(\\be-?mail(?:\\s+address)?\\s*(?:is|was|:)\\s+|\\b(?:address|account)\\s+is\\s+)${WORDS}\\s+at\\s+${HOST}\\b`, 'gi'), toAddress)
+    .replace(new RegExp(`^(\\s*)${WORDS}\\s+at\\s+${HOST}\\b(?=[.!?]?\\s*$)`, 'i'), toAddress);
+}
+if (typeof module !== 'undefined') module.exports = { owModelNames, owMentions, owEmails };

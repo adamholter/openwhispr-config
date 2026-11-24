@@ -35,6 +35,18 @@ Model output also goes through a stripper that removes `<think>…</think>`, `<|
 - A take that is only emoji after conversion skips the model; it used to describe the emoji instead.
 - In selection editing, "just put the emoji" is answered from the table without the model.
 
+## Misheard names, mentions and email addresses
+
+[`model-names.js`](model-names.js) runs on the raw transcript, before cleanup:
+
+- `owModelNames` fixes AI model and product names the recognizer mishears and the cleanup model keeps ("GPT six point one soul" → "GPT 6.1 Sol", "clawed code" → "Claude Code", "open router" → "OpenRouter"). Rules only fire in model talk, so an ordinary "soul" stays.
+- `owMentions` turns "at bot" and "at grok" into "@bot" and "@grok" at the start of a clause or after a lead-in word ("also at grok"). It runs again on the cleanup output, which sometimes rewrites it.
+- `owEmails` turns a spoken address into a real one when there's a cue ("my email is jane doe at gmail dot com" → "janedoe@gmail.com") or the whole take is the address. My copy also has rules for my own addresses, which fire anywhere; add yours the same way.
+
+## Backup request for slow cleanups
+
+[`hedge.js`](hedge.js) wraps the OpenRouter cleanup call. A cleanup normally returns in about half a second, but now and then a provider hangs. If there is no complete answer after 1.3 s plus 2 ms per input character (8 s at most), a second request goes out ranked by throughput, so it usually lands on another provider. The first complete answer wins and the other is aborted.
+
 ## Answer guard
 
 [`answer-guard.js`](answer-guard.js) rejects cleanup output that answers or refuses the dictation, or adds a lot of new words. When that happens, the pre-processed transcript is pasted instead.

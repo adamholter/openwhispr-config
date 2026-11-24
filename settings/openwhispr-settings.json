@@ -7,7 +7,7 @@
     "cleanupMode": "providers",
     "cleanupProvider": "openrouter",
     "cleanupCloudMode": "byok",
-    "cleanupModel": "anthropic/claude-haiku-5.5",
+    "cleanupModel": "deepseek/deepseek-v4.1-flash-1017",
     "dictationAgentMode": "providers",
     "dictationAgentModel": "anthropic/claude-haiku-5.5",
     "chatAgentMode": "providers",
