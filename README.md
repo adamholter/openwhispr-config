@@ -6,11 +6,11 @@ How I run [OpenWhispr](https://github.com/OpenWhispr/openwhispr) for dictation: 
 
 | Step | Model | Where it runs |
 | --- | --- | --- |
-| Speech to text | NVIDIA Parakeet TDT 0.6B v3 (desktop), v2 int8 (phone) | Locally. On Apple Silicon Macs through [FluidAudio](https://github.com/FluidInference/FluidAudio) on the Neural Engine; on Linux through OpenWhispr's bundled sherpa-onnx engine; on Android through sherpa-onnx in the keyboard. |
-| Cleanup | Claude Haiku 5.5 (`anthropic/claude-haiku-5.5`) | OpenRouter, zero data retention, reasoning off |
+| Speech to text | NVIDIA Parakeet Unified EN 0.6B (Mac and phone), TDT 0.6B v3 (Linux) | Locally. On Apple Silicon Macs through [FluidAudio](https://github.com/FluidInference/FluidAudio) on the Neural Engine; on Linux through OpenWhispr's bundled sherpa-onnx engine; on Android through sherpa-onnx in the keyboard. |
+| Cleanup | DeepSeek V4.1 Flash (`deepseek/deepseek-v4.1-flash-1017`) | OpenRouter, zero data retention, reasoning off |
 | Voice commands / assistant | Claude Haiku 5.5 | OpenRouter |
 
-Why these: Parakeet on the Neural Engine transcribes about 80x faster than real time and was more accurate on my recordings than the CPU build and Whisper large-v3-turbo. Haiku 5.5 was the best of six cleanup models I tested on 94 real transcripts for speed, accuracy and cost. A cleanup costs a fraction of a cent.
+Why these: Parakeet on the Neural Engine transcribes about 80x faster than real time and was more accurate on my recordings than the CPU build and Whisper large-v3-turbo. For cleanup I moved from Haiku 5.5 to DeepSeek V4.1 Flash in November. On 363 of my recordings it made fewer mistakes (word error rate 7.5% to 5.3%, clips made worse 17 to 5) and was faster (median 0.88 s to 0.70 s). On the phone's prompt it went from 7.2% to 5.7%. A cleanup costs a fraction of a cent.
 
 ## Cleanup
 
@@ -36,9 +36,15 @@ Patches against OpenWhispr 1.9.2; details and code in [`patches/`](patches/READM
 - No more cutting every 15 seconds: clips under 30 seconds are decoded whole, longer ones are cut in natural pauses.
 
 **Cleanup**
-- Claude Haiku 5.5 through OpenRouter with zero data retention, the fastest provider and reasoning off. The long prompt is cached, about 10x cheaper per cleanup.
+- DeepSeek V4.1 Flash through OpenRouter with zero data retention, the fastest provider and reasoning off.
+- If a cleanup has no answer after about 1.3 s (longer for long dictations), a second request goes to a different provider and the first answer wins. A provider that hangs no longer stalls the paste.
 - A custom cleanup prompt: keeps your wording, writes numbers as digits, adds paragraphs to longer dictations, makes lists only when you list things, and supports spoken editing commands.
-- Spoken numbers are converted to digits before Haiku sees the text, since the model alone misses some.
+- Spoken numbers are converted to digits before the model sees the text, since the model alone misses some.
+- Misheard names are fixed before cleanup ("GPT six point one soul" → "GPT 6.1 Sol", "clawed code" → "Claude Code").
+- "&lt;description&gt; emoji" becomes the emoji.
+- Spoken X mentions become handles ("at grok, look at this" → "@grok, look at this").
+- Spoken email addresses become real ones ("my email is jane doe at gmail dot com" → "janedoe@gmail.com").
+- Output that answers the dictation instead of cleaning it is rejected, and the plain transcript is pasted.
 - An identical transcript reuses its earlier cleanup instantly.
 - Leaked reasoning (`<think>` tags, stray code fences) is stripped.
 
@@ -53,7 +59,7 @@ Patches against OpenWhispr 1.9.2; details and code in [`patches/`](patches/READM
 - The floating icon only shows while you're dictating.
 
 **Phone**
-- A custom HeliBoard-based keyboard instead of OpenWhispr's mobile app: on-device Parakeet, the same Haiku cleanup, recording that survives app switches and rotation, voice editing of selected text, swipe typing, and nothing saved from private fields. See [`android/`](android/README.md).
+- A custom HeliBoard-based keyboard instead of OpenWhispr's mobile app: on-device Parakeet, the same cleanup and fixers as the desktop, dictation history inside the keyboard, recording that survives app switches and rotation, voice editing of selected text, swipe typing, and nothing saved from private fields. See [`android/`](android/README.md).
 
 ## Mac extras
 
@@ -63,7 +69,7 @@ Patches against OpenWhispr 1.9.2; details and code in [`patches/`](patches/READM
 
 ## Android keyboard
 
-The keyboard I use on my phone is in [`android/`](android/README.md): a voice-first fork of HeliBoard with on-device Parakeet, the same Haiku cleanup, recording that survives switching apps, and voice editing of selected text. Build it, then run `android/configure.sh` with your OpenRouter key.
+The keyboard I use on my phone is in [`android/`](android/README.md): a voice-first fork of HeliBoard with on-device Parakeet, the same cleanup as the desktop, your dictation history one tap away, recording that survives switching apps, and voice editing of selected text. Build it, then run `android/configure.sh` with your OpenRouter key.
 
 ## License
 
