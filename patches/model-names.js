@@ -108,6 +108,8 @@ function owEmails(text) {
   };
   return text
     .replace(new RegExp(`(\\be-?mail(?:\\s+address)?\\s*(?:is|was|:)\\s+|\\b(?:address|account)\\s+is\\s+)${WORDS}\\s+at\\s+${HOST}\\b`, 'gi'), toAddress)
-    .replace(new RegExp(`^(\\s*)${WORDS}\\s+at\\s+${HOST}\\b(?=[.!?]?\\s*$)`, 'i'), toAddress);
+    .replace(new RegExp(`^(\\s*)${WORDS}\\s+at\\s+${HOST}\\b(?=[.!?]?\\s*$)`, 'i'), toAddress)
+    // addresses are always lowercase ("Jane@Example.com" -> "jane@example.com")
+    .replace(/\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g, (m) => m.toLowerCase());
 }
 if (typeof module !== 'undefined') module.exports = { owModelNames, owEmails };

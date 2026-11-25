@@ -192,6 +192,7 @@ object ModelNames {
     private val emDotWord by lazy { rx("^dot$") }
     private val emEdgeDot by lazy { rx("^\\.|\\.$") }
     private val emCue by lazy { rx("(\\be-?mail(?:\\s+address)?\\s*(?:is|was|:)\\s+|\\b(?:address|account)\\s+is\\s+)${EM_WORDS}\\s+at\\s+${EM_HOST}\\b") }
+    private val emAnyAddress by lazy { JsRegex.compile("\\b[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+\\b") }
     private val emWhole by lazy { rx("^(\\s*)${EM_WORDS}\\s+at\\s+${EM_HOST}\\b(?=[.!?]?\\s*$)") }
 
     private fun emAddress(m: MatchResult): String {
@@ -212,6 +213,8 @@ object ModelNames {
      */
     fun emails(text: String): String {
         val t = emCue.replace(text) { m -> emAddress(m) }
-        return emWhole.replace(t) { m -> emAddress(m) }
+        t = emWhole.replace(t) { m -> emAddress(m) }
+        // addresses are always lowercase ("Jane@Example.com" -> "jane@example.com")
+        return emAnyAddress.replace(t) { m -> m.value.lowercase() }
     }
 }

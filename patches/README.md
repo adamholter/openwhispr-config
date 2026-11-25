@@ -42,7 +42,7 @@ Model output also goes through a stripper that removes `<think>…</think>`, `<|
 - `owModelNames` fixes AI model and product names the recognizer mishears and the cleanup model keeps ("GPT six point one soul" → "GPT 6.1 Sol", "clawed code" → "Claude Code", "open router" → "OpenRouter"). Rules only fire in model talk, so an ordinary "soul" stays.
 - No code writes @ mentions. Saying "at" before a name ("at bot, look into this", "At Sam Lee, feel free to steal this") is handled by the cleanup prompt, which can tell a tag from "At Google, we shipped it" or "good at bot detection".
 - [`chat-abbrev.js`](chat-abbrev.js): `owChat` writes chat abbreviations (idk, tbh, btw, iirc, lmk, imo...) in lowercase, even at the start of a sentence, and keeps "IMO gold" and ASAP as they are. `owChatRestore` runs on the cleanup output: if the transcript said "TBH" and the model wrote "to be honest", it puts "tbh" back, and the reverse when the speaker said the words in full.
-- `owEmails` turns a spoken address into a real one when there's a cue ("my email is jane doe at gmail dot com" → "janedoe@gmail.com") or the whole take is the address. My copy also has rules for my own addresses, which fire anywhere; add yours the same way.
+- `owEmails` turns a spoken address into a real one when there's a cue ("my email is jane doe at gmail dot com" → "janedoe@gmail.com") or the whole take is the address, and writes every address in lowercase. The cleanup prompt also formats spoken addresses ("Dylan at acme dot io" → "dylan@acme.io") and treats them as addresses, not mentions. My copy also has rules for my own addresses, which fire anywhere; add yours the same way.
 
 ## Backup request for slow cleanups
 
