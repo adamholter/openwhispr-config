@@ -40,7 +40,7 @@ Model output also goes through a stripper that removes `<think>…</think>`, `<|
 [`model-names.js`](model-names.js) runs on the raw transcript, before cleanup:
 
 - `owModelNames` fixes AI model and product names the recognizer mishears and the cleanup model keeps ("GPT six point one soul" → "GPT 6.1 Sol", "clawed code" → "Claude Code", "open router" → "OpenRouter"). Rules only fire in model talk, so an ordinary "soul" stays.
-- `owMentions` turns "at bot" and "at grok" into "@bot" and "@grok" at the start of a clause or after a lead-in word ("also at grok", "btw at bot"), including the phone's "at butt" mishearing, and "tag at Elon" into "tag @Elon". It runs again on the cleanup output, which sometimes rewrites it. Tags of any other name ("At Sam Lee, feel free to steal this" → "@SamLee, ...") are left to the cleanup prompt, which can tell a tag from "At Google, we shipped it".
+- No code writes @ mentions. Saying "at" before a name ("at bot, look into this", "At Sam Lee, feel free to steal this") is handled by the cleanup prompt, which can tell a tag from "At Google, we shipped it" or "good at bot detection".
 - [`chat-abbrev.js`](chat-abbrev.js): `owChat` writes chat abbreviations (idk, tbh, btw, iirc, lmk, imo...) in lowercase, even at the start of a sentence, and keeps "IMO gold" and ASAP as they are. `owChatRestore` runs on the cleanup output: if the transcript said "TBH" and the model wrote "to be honest", it puts "tbh" back, and the reverse when the speaker said the words in full.
 - `owEmails` turns a spoken address into a real one when there's a cue ("my email is jane doe at gmail dot com" → "janedoe@gmail.com") or the whole take is the address. My copy also has rules for my own addresses, which fire anywhere; add yours the same way.
 

@@ -88,20 +88,7 @@ function owModelNames(text) {
   t = t.replace(/\bargonne\b/gi, (m, off, str) => /\bgemini\b/i.test(str.slice(Math.max(0, off - 60), off + 60)) ? 'Argon' : m);
   t = t.replace(/\b(?:carpathy|karpathi|carpathi)\b/gi, 'Karpathy');
   t = t.replace(/\bcash(?=\s+(?:rate|hit|hits|miss|misses|read|reads|write|writes|pricing|discount|tokens)\b)/gi, 'cache').replace(/\bprompt\s+cashing\b/gi, 'prompt caching').replace(/\bcashed(?=\s+(?:tokens|input|prompt)\b)/gi, 'cached');
-  return owChat(owMentions(owEmails(t)));
-}
-// Spoken X mentions: "At bot, look into this" -> "@bot, look into this" (@bot is my own X bot; @grok is xAI's). Fires at a clause start, after a lead-in word ("also at bot", "tag at grok"),
-// or for bot before punctuation; "looking at Grok's chart" or "good at bot detection" stay as they are.
-// Also run on the cleanup output, which sometimes rewrites "at bot". Kotlin mirror: ModelNames.mentions.
-function owMentions(text) {
-  const LEAD = '(?:also|and|so|hey|okay|ok|yeah|but|then|just|or|now|do|say|tag|ping|mention|use|with|cc|btw|fyi)';
-  return text
-    .replace(new RegExp(`(^|[.!?,;:(]\\s*|\\b${LEAD}\\s+)at\\s+(bot|grok)\\b`, 'gi'), (m, a, h) => a + '@' + h.toLowerCase())
-    // the phone hears "at bot" as "at butt" / "at but"; neither is English at the start of a take or clause
-    .replace(new RegExp(`(^|[.!?]\\s*|\\b${LEAD}\\s+)at\\s+(?:butt|but|bought)\\b(?!\\s+(?:also|not|then|still|i|we|you|it)\\b)`, 'gi'), (m, a) => a + '@bot')
-    .replace(/\bat\s+(?:bot|butt)\b(?=\s*(?:[,.!?;:)]|$))/gi, '@bot')
-    // "tag at Elon", "cc at Theo": always a mention
-    .replace(/\b([Tt]ag|[Tt]agging|[Tt]agged|[Pp]ing|[Cc][Cc])\s+at\s+([A-Z][\w]*)/g, (m, v, h) => v + ' @' + h);
+  return owChat(owEmails(t));
 }
 // anywhere, including misheard surnames. Anyone else's needs "my email is ..." or the whole take being the
 // address, so "looking at gmail.com" stays as it is. Kotlin mirror: ModelNames.emails.
@@ -123,4 +110,4 @@ function owEmails(text) {
     .replace(new RegExp(`(\\be-?mail(?:\\s+address)?\\s*(?:is|was|:)\\s+|\\b(?:address|account)\\s+is\\s+)${WORDS}\\s+at\\s+${HOST}\\b`, 'gi'), toAddress)
     .replace(new RegExp(`^(\\s*)${WORDS}\\s+at\\s+${HOST}\\b(?=[.!?]?\\s*$)`, 'i'), toAddress);
 }
-if (typeof module !== 'undefined') module.exports = { owModelNames, owMentions, owEmails };
+if (typeof module !== 'undefined') module.exports = { owModelNames, owEmails };

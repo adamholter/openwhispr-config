@@ -297,6 +297,8 @@ object ImeDictationPipeline {
         stop(host,session,current,fromNotification=true)
     }
     /** How the last process() call treated cleanup: raw, short, clean, rejected or failed. Logged with history. */
+    // A short take that starts with "at" is usually a tag ("At butt" = @bot); the cleanup model writes the @.
+    private val shortMention=Regex("^\\s*at\\s+\\S",RegexOption.IGNORE_CASE)
     @Volatile var lastCleanupStatus="clean"
     private suspend fun process(context:Context,pending:PendingRecording,target:String?,cleanup:Boolean=true,settingsOverride:Settings?=null,samplesOverride:ShortArray?=null,status:(String)->Unit):Pair<String,String>{
         val settings=settingsOverride ?: SettingsRepository(context).get()
@@ -316,7 +318,7 @@ object ImeDictationPipeline {
         lastCleanupStatus=if(!cleanup)"raw" else "short"
         // A take that is only emoji (or digits) has nothing to clean; the model would describe it instead.
         val hasWords=cleaned.any{it.isLetter()}
-        if(hasInstructions||(cleanup&&hasWords&&settings.isConfigured&&settings.llmPolishEnabled&&(needsModel||cleaned.trim().split(Regex("\\s+")).size>=4))){
+        if(hasInstructions||(cleanup&&hasWords&&settings.isConfigured&&settings.llmPolishEnabled&&(needsModel||cleaned.trim().split(Regex("\\s+")).size>=4||shortMention.containsMatchIn(cleaned)))){
             lastCleanupStatus="rejected"
             status(if(hasInstructions)"Applying instructions" else "Cleaning up")
             try{

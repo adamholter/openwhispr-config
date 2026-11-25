@@ -180,27 +180,7 @@ object ModelNames {
         }
         t = karpathy.replace(t, "Karpathy")
         t = cash.replace(t, "cache"); t = promptCashing.replace(t, "prompt caching"); t = cashed.replace(t, "cached")
-        return ChatAbbrev.lower(mentions(emails(t)))
-    }
-
-    private const val LEAD = "(?:also|and|so|hey|okay|ok|yeah|but|then|just|or|now|do|say|tag|ping|mention|use|with|cc|btw|fyi)"
-    private val mentionLead by lazy { rx("(^|[.!?,;:(]\\s*|\\b$LEAD\\s+)at\\s+(bot|grok)\\b") }
-    // the phone hears "at bot" as "at butt" / "at but"; neither is English at the start of a take or clause
-    private val mentionBotMisheard by lazy { rx("(^|[.!?]\\s*|\\b$LEAD\\s+)at\\s+(?:butt|but|bought)\\b(?!\\s+(?:also|not|then|still|i|we|you|it)\\b)") }
-    private val mentionBotEnd by lazy { rx("\\bat\\s+(?:bot|butt)\\b(?=\\s*(?:[,.!?;:)]|$))") }
-    // "tag at Elon", "cc at Theo": always a mention
-    private val mentionTag by lazy { JsRegex.compile("\\b([Tt]ag|[Tt]agging|[Tt]agged|[Pp]ing|[Cc][Cc])\\s+at\\s+([A-Z][\\w]*)", false) }
-
-    /**
-     * Spoken X mentions: "At bot, look into this" -> "@bot, look into this" (@bot hands the post to
-     * Adam's Grok Bot; @grok is xAI's). Mirror of owMentions in owModelNames.js. Also run on the
-     * cleanup output, which sometimes rewrites "at bot".
-     */
-    fun mentions(text: String): String {
-        var t = mentionLead.replace(text) { m -> m.groupValues[1] + "@" + m.groupValues[2].lowercase() }
-        t = mentionBotMisheard.replace(t) { m -> m.groupValues[1] + "@bot" }
-        t = mentionBotEnd.replace(t, "@bot")
-        return mentionTag.replace(t) { m -> m.groupValues[1] + " @" + m.groupValues[2] }
+        return ChatAbbrev.lower(emails(t))
     }
 
     private const val EM_AT = "(?:\\s+at\\s+|\\s*@\\s*)"
