@@ -20,6 +20,7 @@ The keyboard I use on my phone: a voice-first fork of [HeliBoard](https://github
 
 **Typing**
 - A mic key in the bottom row of the typing keyboard gets you back to voice. Swipe typing works in the typing mode (see below).
+- Smart touch targets: when a tap lands near the border between two letters, the letter that fits the word you're typing wins. The middle of every key never changes. Switch it off under Text correction.
 - One backspace after a swiped word deletes the whole word. Backspacing into the end of a word brings its suggestions back.
 - A short toolbar: voice, history, clipboard, emoji, undo, redo, settings.
 - Clipboard history kept for 30 days by default (or forever), shown as cards with when you copied each one.

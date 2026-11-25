@@ -84,7 +84,8 @@ public class KeyDetector {
 
         int minDistance = Integer.MAX_VALUE;
         Key primaryKey = null;
-        for (final Key key: mKeyboard.getNearestKeys(touchX, touchY)) {
+        final java.util.List<Key> nearestKeys = mKeyboard.getNearestKeys(touchX, touchY);
+        for (final Key key: nearestKeys) {
             // An edge key always has its enlarged hitbox to respond to an event that occurred in
             // the empty area around the key. (@see Key#markAsLeftEdge(KeyboardParams)} etc.)
             if (!key.isOnKey(touchX, touchY)) {
@@ -101,6 +102,14 @@ public class KeyDetector {
                 primaryKey = key;
             }
         }
+        if (primaryKey != null && adjustsKeyTargets()) {
+            return KeyTargetModel.adjust(primaryKey, touchX, touchY, nearestKeys);
+        }
         return primaryKey;
+    }
+
+    /** Whether predictive touch targets may move this detector's letter-key borders. */
+    protected boolean adjustsKeyTargets() {
+        return true;
     }
 }

@@ -687,6 +687,11 @@ public final class InputLogic {
 
     // TODO: on the long term, this method should become private, but it will be difficult.
     // Especially, how do we deal with InputMethodService.onDisplayCompletions?
+    /** The word being composed, for predictive touch targets. */
+    public String getTypedWordForKeyTargets() {
+        return mWordComposer.getTypedWord();
+    }
+
     public void setSuggestedWords(final SuggestedWords suggestedWords) {
         if (!suggestedWords.isEmpty()) {
             final SuggestedWordInfo suggestedWordInfo;

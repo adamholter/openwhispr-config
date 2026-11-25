@@ -69,6 +69,7 @@ fun TextCorrectionScreen(
         if (autocorrectEnabled) Settings.PREF_AUTO_CORRECT_CONFIDENCE else null,
         if (autocorrectEnabled) Settings.PREF_BACKSPACE_REVERTS_AUTOCORRECT else null,
         Settings.PREF_AUTO_CAP,
+        Settings.PREF_SMART_KEY_TARGETS,
         R.string.settings_category_space,
         Settings.PREF_KEY_USE_DOUBLE_SPACE_PERIOD,
         Settings.PREF_AUTOSPACE_AFTER_PUNCTUATION,
@@ -218,6 +219,11 @@ fun createCorrectionSettings(context: Context) = listOf(
             )
         }
 
+    },
+    Setting(context, Settings.PREF_SMART_KEY_TARGETS,
+        R.string.smart_key_targets, R.string.smart_key_targets_summary
+    ) {
+        SwitchPreference(it, Defaults.PREF_SMART_KEY_TARGETS)
     },
     Setting(context, Settings.PREF_BIGRAM_PREDICTIONS,
         R.string.bigram_prediction, R.string.bigram_prediction_summary

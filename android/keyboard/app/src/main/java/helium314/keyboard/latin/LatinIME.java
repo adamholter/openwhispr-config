@@ -562,6 +562,7 @@ public class LatinIME extends InputMethodService implements
     @Override
     public void onCreate() {
         mSettings.startListener();
+        helium314.keyboard.keyboard.KeyTargetModel.setTypedWordSupplier(mInputLogic::getTypedWordForKeyTargets);
         KeyboardIconsSet.Companion.getInstance().loadIcons(this);
         mRichImm = RichInputMethodManager.getInstance();
         AudioAndHapticFeedbackManager.init(this);
@@ -614,6 +615,7 @@ public class LatinIME extends InputMethodService implements
                 editorInfo, isFullscreenMode(), getPackageName());
         mSettings.loadSettings(this, locale, inputAttributes);
         final SettingsValues currentSettingsValues = mSettings.getCurrent();
+        helium314.keyboard.keyboard.KeyTargetModel.enabled = currentSettingsValues.mSmartKeyTargets;
         AudioAndHapticFeedbackManager.getInstance().onSettingsChanged(currentSettingsValues);
         // This method is called on startup and language switch, before the new layout has
         // been displayed. Opening dictionaries never affects responsivity as dictionaries are
@@ -716,6 +718,8 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onDestroy() {
+        helium314.keyboard.keyboard.KeyTargetModel.setTypedWordSupplier(null);
+        helium314.keyboard.keyboard.KeyTargetModel.clear();
         ImeDictationPipeline.INSTANCE.cancel(false);
         mClipboardHistoryManager.onDestroy();
         mDictionaryFacilitator.closeDictionaries();
@@ -1073,6 +1077,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     void onStartInputViewInternal(final EditorInfo editorInfo, final boolean restarting) {
+        helium314.keyboard.keyboard.KeyTargetModel.clear();
         super.onStartInputView(editorInfo, restarting);
 
         setGestureDataGatheringMode(editorInfo, restarting);
@@ -2124,6 +2129,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void setSuggestions(final SuggestedWords suggestedWords) {
+        helium314.keyboard.keyboard.KeyTargetModel.onSuggestions(suggestedWords);
         if (suggestedWords.isEmpty()) {
             // avoids showing clipboard suggestion when starting gesture typing
             // should be fine, as there will be another suggestion in a few ms
@@ -2177,6 +2183,7 @@ public class LatinIME extends InputMethodService implements
     // and there is a selection of text or it's the start of a line.
     @Override
     public void setNeutralSuggestionStrip() {
+        helium314.keyboard.keyboard.KeyTargetModel.clear();
         final SettingsValues currentSettings = mSettings.getCurrent();
         if (tryShowClipboardSuggestion()) {
             // clipboard suggestion has been set
