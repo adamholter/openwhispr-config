@@ -333,7 +333,7 @@ object ImeDictationPipeline {
             }
         }
         // Drop description words the model left beside an emoji it inserted, and restore any unresolved marker.
-        if(cleanup)cleaned=ModelNames.fix(SpokenEmoji.unmark(SpokenEmoji.convert(context,cleaned)))
+        if(cleanup)cleaned=ChatAbbrev.restore(raw,ModelNames.fix(SpokenEmoji.unmark(SpokenEmoji.convert(context,cleaned))))
         if(target!=null){
             if(!settings.isConfigured)throw IllegalStateException("Translation provider is not configured")
             status("Translating")

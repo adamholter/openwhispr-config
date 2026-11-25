@@ -20,6 +20,7 @@ The keyboard I use on my phone: a voice-first fork of [HeliBoard](https://github
 
 **Typing**
 - A mic key in the bottom row of the typing keyboard gets you back to voice. Swipe typing works in the typing mode (see below).
+- Chat abbreviations come out lowercase (idk, tbh, btw), and saying "at" before a name tags it ("at bot" → @bot), same as the desktop.
 - Smart touch targets: when a tap lands near the border between two letters, the letter that fits the word you're typing wins. The middle of every key never changes. Switch it off under Text correction.
 - One backspace after a swiped word deletes the whole word. Backspacing into the end of a word brings its suggestions back.
 - A short toolbar: voice, history, clipboard, emoji, undo, redo, settings.
