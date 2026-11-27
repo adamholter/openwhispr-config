@@ -212,7 +212,7 @@ object ModelNames {
      * own addresses, including misheard surnames; add yours here.)
      */
     fun emails(text: String): String {
-        val t = emCue.replace(text) { m -> emAddress(m) }
+        var t = emCue.replace(text) { m -> emAddress(m) }
         t = emWhole.replace(t) { m -> emAddress(m) }
         // addresses are always lowercase ("Jane@Example.com" -> "jane@example.com")
         return emAnyAddress.replace(t) { m -> m.value.lowercase() }

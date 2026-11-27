@@ -39,6 +39,7 @@ public final class VoicePanelView extends LinearLayout {
         void showTyping(); void openHistory(); void deleteBackward();
         void insertText(String text); void performEnter();
         void cycleLanguage(); void cycleCleanup(); void editSelection(); void undo();
+        boolean showInputMethodPicker();
     }
 
     private static final String READY = "Tap to speak";
@@ -227,6 +228,7 @@ public final class VoicePanelView extends LinearLayout {
         space = textKey("");
         space.setContentDescription("Insert space");
         space.setOnClickListener(v -> actions.insertText(" "));
+        space.setOnLongClickListener(v -> actions.showInputMethodPicker());
         bottomRow.addView(space, keyParams(4f));
         enter = iconButton(R.drawable.sym_keyboard_return_rounded, "Return or next field");
         enter.setOnClickListener(v -> actions.performEnter());
