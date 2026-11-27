@@ -1617,6 +1617,9 @@ public class LatinIME extends InputMethodService implements
         }
         @Override public void editSelection() { beginSelectionEdit(); }
         @Override public void undo() { undoLastEdit(); }
+        @Override public boolean showInputMethodPicker() {
+            return Settings.getValues().mSpaceForLangChange && showInputPickerDialog();
+        }
     }
 
     protected void deallocateMemory() {
